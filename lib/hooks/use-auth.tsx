@@ -85,13 +85,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isDemoMode]);
 
   const signOut = async () => {
-    if (isDemoMode) {
-      // デモモードではログアウトしない（常にログイン状態を維持）
-      return;
+    try {
+      // Firebase認証からログアウト
+      await firebaseSignOut(auth);
+      setUser(null);
+      setAdmin(null);
+
+      // ローカルストレージとセッションストレージをクリア
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+    } catch (error) {
+      console.error("Sign out error:", error);
+      // エラーが発生してもstateはクリア
+      setUser(null);
+      setAdmin(null);
     }
-    await firebaseSignOut(auth);
-    setUser(null);
-    setAdmin(null);
   };
 
   return (
