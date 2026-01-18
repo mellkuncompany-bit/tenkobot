@@ -22,40 +22,13 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
-// デモモード用のモックデータ
-const DEMO_USER = {
-  uid: "demo-user-id",
-  email: "demo@example.com",
-  displayName: "デモ管理者",
-} as User;
-
-const DEMO_ADMIN: Admin = {
-  id: "demo-admin-id",
-  email: "demo@example.com",
-  displayName: "デモ管理者",
-  organizationId: "demo-organization-id",
-  role: "owner",
-  createdAt: Timestamp.now(),
-  updatedAt: Timestamp.now(),
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [admin, setAdmin] = useState<Admin | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-
   useEffect(() => {
-    // デモモードの場合は即座にモックデータを設定
-    if (isDemoMode) {
-      setUser(DEMO_USER);
-      setAdmin(DEMO_ADMIN);
-      setLoading(false);
-      return () => {}; // 空のクリーンアップ関数を返す
-    }
-
-    // 通常モード: Firebaseの認証状態を監視
+    // Firebaseの認証状態を監視
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
 
@@ -91,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [isDemoMode]);
+  }, []);
 
   const signOut = async () => {
     try {
