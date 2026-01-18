@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "@/lib/services/auth-service";
@@ -11,6 +11,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function LoginPage() {
   const router = useRouter();
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
+  // デモモードの場合はダッシュボードにリダイレクト
+  useEffect(() => {
+    if (isDemoMode) {
+      router.push("/dashboard");
+    }
+  }, [isDemoMode, router]);
   const [formData, setFormData] = useState({
     email: "",
     password: "",

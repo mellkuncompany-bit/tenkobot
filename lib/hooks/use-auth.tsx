@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(DEMO_USER);
       setAdmin(DEMO_ADMIN);
       setLoading(false);
-      return;
+      return () => {}; // 空のクリーンアップ関数を返す
     }
 
     // 通常モード: Firebaseの認証状態を監視
