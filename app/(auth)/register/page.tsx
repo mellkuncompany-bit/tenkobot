@@ -11,14 +11,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function RegisterPage() {
   const router = useRouter();
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
-
-  // デモモードの場合はダッシュボードにリダイレクト
-  useEffect(() => {
-    if (isDemoMode) {
-      router.push("/dashboard");
-    }
-  }, [isDemoMode, router]);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
