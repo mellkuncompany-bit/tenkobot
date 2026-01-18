@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
+import { auth, db } from "@/lib/firebase/client";
 import { Admin } from "@/lib/types/firestore";
 import { doc, getDoc } from "firebase/firestore";
 import { COLLECTIONS } from "@/lib/firebase/collections";
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (firebaseUser) {
         // Fetch admin data from Firestore
         try {
-          const adminRef = doc(auth.app.firestore, COLLECTIONS.ADMINS, firebaseUser.uid);
+          const adminRef = doc(db, COLLECTIONS.ADMINS, firebaseUser.uid);
           const adminSnap = await getDoc(adminRef);
 
           if (adminSnap.exists()) {
