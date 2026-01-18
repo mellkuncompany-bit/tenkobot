@@ -4,6 +4,10 @@ import { adminDb } from "@/lib/firebase/admin";
 import { COLLECTIONS } from "@/lib/firebase/collections";
 import { Timestamp } from "firebase-admin/firestore";
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
  * LINE Webhook Handler
  * Handles LINE bot events (postback, message, etc.)

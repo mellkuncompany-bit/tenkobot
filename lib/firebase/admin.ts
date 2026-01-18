@@ -1,6 +1,12 @@
 import * as admin from "firebase-admin";
 
-if (!admin.apps.length) {
+// Only initialize if environment variables are present
+const hasFirebaseConfig =
+  process.env.FIREBASE_ADMIN_PROJECT_ID &&
+  process.env.FIREBASE_ADMIN_CLIENT_EMAIL &&
+  process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+
+if (!admin.apps.length && hasFirebaseConfig) {
   try {
     admin.initializeApp({
       credential: admin.credential.cert({
@@ -14,7 +20,8 @@ if (!admin.apps.length) {
   }
 }
 
-export const adminDb = admin.firestore();
-export const adminAuth = admin.auth();
+// Export functions that check if admin is initialized
+export const adminDb = hasFirebaseConfig ? admin.firestore() : (null as any);
+export const adminAuth = hasFirebaseConfig ? admin.auth() : (null as any);
 
 export default admin;
