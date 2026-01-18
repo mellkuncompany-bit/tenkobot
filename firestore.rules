@@ -1,0 +1,81 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function getAdmin() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data;
+    }
+
+    function belongsToOrganization(organizationId) {
+      return isAdmin() && getAdmin().organizationId == organizationId;
+    }
+
+    // Organizations
+    match /organizations/{orgId} {
+      allow read: if belongsToOrganization(orgId);
+      allow write: if belongsToOrganization(orgId) && getAdmin().role == 'owner';
+    }
+
+    // Admins
+    match /admins/{adminId} {
+      allow read: if isAuthenticated() && request.auth.uid == adminId;
+      allow write: if false; // Only via server-side
+    }
+
+    // Staffs
+    match /staffs/{staffId} {
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Work Templates
+    match /workTemplates/{templateId} {
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Shifts
+    match /shifts/{shiftId} {
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Attendance Records
+    match /attendanceRecords/{recordId} {
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow write: if false; // Only via server-side (Cloud Functions)
+    }
+
+    // Escalation Policies
+    match /escalationPolicies/{policyId} {
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+    }
+
+    // Notifications Log (read-only for admins)
+    match /notificationsLog/{logId} {
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow write: if false; // Only via server-side
+    }
+
+    // Escalation Executions (read-only for admins)
+    match /escalationExecutions/{executionId} {
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow write: if false; // Only via server-side
+    }
+  }
+}
