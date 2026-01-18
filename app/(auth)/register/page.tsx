@@ -66,6 +66,10 @@ export default function RegisterPage() {
         organizationName: formData.organizationName,
       });
 
+      // Wait a moment for Firestore documents to be created
+      // before redirecting to dashboard
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       // Redirect to dashboard
       router.push("/dashboard");
     } catch (err: any) {

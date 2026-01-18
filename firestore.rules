@@ -23,13 +23,15 @@ service cloud.firestore {
     // Organizations
     match /organizations/{orgId} {
       allow read: if belongsToOrganization(orgId);
-      allow write: if belongsToOrganization(orgId) && getAdmin().role == 'owner';
+      allow create: if isAuthenticated() && request.auth.uid == orgId;
+      allow update, delete: if belongsToOrganization(orgId) && getAdmin().role == 'owner';
     }
 
     // Admins
     match /admins/{adminId} {
       allow read: if isAuthenticated() && request.auth.uid == adminId;
-      allow write: if false; // Only via server-side
+      allow create: if isAuthenticated() && request.auth.uid == adminId;
+      allow update, delete: if false; // Only via server-side
     }
 
     // Staffs

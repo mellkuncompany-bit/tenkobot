@@ -68,10 +68,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (adminSnap.exists()) {
             setAdmin({ id: adminSnap.id, ...adminSnap.data() } as Admin);
           } else {
+            console.log("Admin document does not exist yet for user:", firebaseUser.uid);
             setAdmin(null);
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching admin data:", error);
+          console.error("Error code:", error.code);
+          console.error("Error message:", error.message);
+
+          // If the error is due to the document not existing yet (during registration),
+          // don't treat it as a critical error
+          if (error.code === 'unavailable' || error.message?.includes('offline')) {
+            console.log("Firestore temporarily unavailable, will retry on next auth state change");
+          }
           setAdmin(null);
         }
       } else {
