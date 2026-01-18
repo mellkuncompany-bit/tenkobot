@@ -45,6 +45,7 @@ export async function registerOrganization(data: RegisterData): Promise<UserCred
       limits: trialPlan.limits,
       stripeCustomerId: null,
       stripeSubscriptionId: null,
+      lineConfig: null,
     };
 
     const organizationRef = doc(db, COLLECTIONS.ORGANIZATIONS, userId);
