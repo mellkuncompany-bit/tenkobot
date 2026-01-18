@@ -32,11 +32,32 @@ export default function DebugPage() {
         const testCollection = collection(db, "organizations");
         const snapshot = await getDocs(testCollection);
         result.firestore.testConnection = `成功 (${snapshot.size}件のドキュメント)`;
+        result.firestore.documentsCount = snapshot.size;
         result.firestore.error = null;
+
+        // List document IDs if any exist
+        if (snapshot.size > 0) {
+          result.firestore.documentIds = snapshot.docs.map(doc => doc.id);
+        }
       } catch (error: any) {
         result.firestore.testConnection = "失敗";
         result.firestore.error = error.message;
         result.firestore.errorCode = error.code;
+      }
+
+      // Check admins collection
+      try {
+        const adminsCollection = collection(db, "admins");
+        const adminsSnapshot = await getDocs(adminsCollection);
+        result.adminsCollection = {
+          count: adminsSnapshot.size,
+          documentIds: adminsSnapshot.docs.map(doc => doc.id)
+        };
+      } catch (error: any) {
+        result.adminsCollection = {
+          error: error.message,
+          errorCode: error.code
+        };
       }
 
       setStatus(result);

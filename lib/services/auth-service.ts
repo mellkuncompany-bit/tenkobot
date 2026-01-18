@@ -21,18 +21,23 @@ export interface RegisterData {
  * Register new organization and admin user
  */
 export async function registerOrganization(data: RegisterData): Promise<UserCredential> {
+  console.log("=== Starting registration process ===");
+
   try {
     // 1. Create Firebase Auth user
+    console.log("Step 1: Creating Firebase Auth user...");
     const userCredential = await createUserWithEmailAndPassword(
       auth,
       data.email,
       data.password
     );
+    console.log("✓ Firebase Auth user created:", userCredential.user.uid);
 
     const userId = userCredential.user.uid;
     const now = Timestamp.now();
 
     // 2. Create organization with trial plan
+    console.log("Step 2: Creating organization document...");
     const trialPlan = PLANS.trial;
     const organizationData: CreateOrganization = {
       name: data.organizationName,
@@ -54,8 +59,10 @@ export async function registerOrganization(data: RegisterData): Promise<UserCred
       createdAt: now,
       updatedAt: now,
     });
+    console.log("✓ Organization document created");
 
     // 3. Create admin user
+    console.log("Step 3: Creating admin document...");
     const adminData: CreateAdmin = {
       email: data.email,
       displayName: data.displayName,
@@ -69,10 +76,16 @@ export async function registerOrganization(data: RegisterData): Promise<UserCred
       createdAt: now,
       updatedAt: now,
     });
+    console.log("✓ Admin document created");
+    console.log("=== Registration completed successfully ===");
 
     return userCredential;
   } catch (error: any) {
-    console.error("Registration error:", error);
+    console.error("=== Registration failed ===");
+    console.error("Error type:", error.constructor.name);
+    console.error("Error code:", error.code);
+    console.error("Error message:", error.message);
+    console.error("Full error:", error);
     throw new Error(error.message || "登録に失敗しました");
   }
 }
