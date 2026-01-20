@@ -333,31 +333,27 @@ export default function NewStaffPage() {
                 <h3 className="text-sm font-semibold text-gray-700">担当作業</h3>
                 <div className="space-y-2">
                   <Label htmlFor="assignedWork">担当作業を選択または入力</Label>
-                  {workTemplates.length > 0 ? (
-                    <Select
-                      id="assignedWork"
-                      value={formData.assignedWorkTemplateIds[0] || ""}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setFormData({
-                          ...formData,
-                          assignedWorkTemplateIds: value ? [value] : []
-                        });
-                      }}
-                      disabled={loading}
-                    >
-                      <option value="">選択してください</option>
-                      {workTemplates.map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <p className="text-sm text-gray-500">作業マスタが登録されていません</p>
-                  )}
+                  <Select
+                    id="assignedWork"
+                    value={formData.assignedWorkTemplateIds[0] || ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({
+                        ...formData,
+                        assignedWorkTemplateIds: value ? [value] : []
+                      });
+                    }}
+                    disabled={loading}
+                  >
+                    <option value="">未定</option>
+                    {workTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </Select>
                   <p className="text-xs text-gray-500">
-                    担当する作業を1つ選択してください
+                    担当する作業を選択してください（未定でもOK）
                   </p>
                 </div>
               </div>
