@@ -20,7 +20,7 @@ export default function EditWorkTemplatePage() {
     name: "",
     description: "",
     notes: "",
-    estimatedDuration: 60,
+    reportCheckTime: "",
   });
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export default function EditWorkTemplatePage() {
           name: data.name,
           description: data.description,
           notes: data.notes,
-          estimatedDuration: data.estimatedDuration,
+          reportCheckTime: data.reportCheckTime || "",
         });
       }
       setLoading(false);
@@ -108,13 +108,16 @@ export default function EditWorkTemplatePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="estimatedDuration">所要時間（分）</Label>
+                <Label htmlFor="reportCheckTime">作業報告確認時刻</Label>
                 <Input
-                  id="estimatedDuration"
-                  type="number"
-                  value={formData.estimatedDuration}
-                  onChange={(e) => setFormData({ ...formData, estimatedDuration: Number(e.target.value) })}
+                  id="reportCheckTime"
+                  type="time"
+                  value={formData.reportCheckTime}
+                  onChange={(e) => setFormData({ ...formData, reportCheckTime: e.target.value })}
                 />
+                <p className="text-xs text-gray-500">
+                  この時刻に作業報告を確認します。未報告の場合はエスカレーション処理が実行されます
+                </p>
               </div>
 
               <div className="flex space-x-4 pt-4">

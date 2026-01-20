@@ -111,13 +111,17 @@ export interface WorkTemplate {
   name: string;
   description: string;
   notes: string;
-  estimatedDuration: number; // minutes
+
+  // Deprecated fields (kept for backward compatibility)
+  estimatedDuration?: number; // minutes - deprecated
+  expectedDurationMinutes?: number; // Expected duration - deprecated
 
   // New fields
-  expectedDurationMinutes: number; // Expected duration for overtime checking
+  reportCheckTime: string | null; // 作業報告確認時刻 (HH:mm format)
   recurringSchedule: RecurringSchedule | null;
   unitPrice: number; // Unit price for invoicing
   defaultDriverAssignment: DriverAssignment | null; // Default driver assignment
+  escalationPolicyId: string | null; // エスカレーション設定
 
   isActive: boolean;
   createdAt: Timestamp;

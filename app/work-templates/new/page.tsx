@@ -30,9 +30,7 @@ export default function NewWorkTemplatePage() {
     name: "",
     description: "",
     notes: "",
-    estimatedDuration: 60,
-    expectedDurationMinutes: 60,
-    unitPrice: 0,
+    reportCheckTime: "",
 
     // Recurring schedule
     useRecurringSchedule: false,
@@ -105,11 +103,11 @@ export default function NewWorkTemplatePage() {
         name: formData.name,
         description: formData.description,
         notes: formData.notes,
-        estimatedDuration: formData.estimatedDuration,
-        expectedDurationMinutes: formData.expectedDurationMinutes,
-        unitPrice: formData.unitPrice,
+        reportCheckTime: formData.reportCheckTime || null,
         recurringSchedule,
+        unitPrice: 0, // 管理者専用ページで設定
         defaultDriverAssignment,
+        escalationPolicyId: null, // 今後実装
         isActive: true,
       });
 
@@ -182,43 +180,20 @@ export default function NewWorkTemplatePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="estimatedDuration">所要時間（分）</Label>
-                  <Input
-                    id="estimatedDuration"
-                    type="number"
-                    min="0"
-                    value={formData.estimatedDuration}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        estimatedDuration: Number(e.target.value),
-                      })
-                    }
-                    disabled={loading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="expectedDurationMinutes">所定時間（分）</Label>
-                  <Input
-                    id="expectedDurationMinutes"
-                    type="number"
-                    min="0"
-                    value={formData.expectedDurationMinutes}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        expectedDurationMinutes: Number(e.target.value),
-                      })
-                    }
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-gray-500">
-                    この時間を超過すると架電通知が送られます
-                  </p>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="reportCheckTime">作業報告確認時刻</Label>
+                <Input
+                  id="reportCheckTime"
+                  type="time"
+                  value={formData.reportCheckTime}
+                  onChange={(e) =>
+                    setFormData({ ...formData, reportCheckTime: e.target.value })
+                  }
+                  disabled={loading}
+                />
+                <p className="text-xs text-gray-500">
+                  この時刻に作業報告を確認します。未報告の場合はエスカレーション処理が実行されます
+                </p>
               </div>
 
               {/* 単価設定は管理者専用ページで設定 */}
@@ -244,184 +219,186 @@ export default function NewWorkTemplatePage() {
             </CardContent>
           </Card>
 
-          {/* Recurring Schedule */}
+          {/* All Settings Consolidated */}
           <Card>
             <CardHeader>
-              <CardTitle>繰り返し設定</CardTitle>
+              <CardTitle>各種設定</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="useRecurringSchedule"
-                  checked={formData.useRecurringSchedule}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      useRecurringSchedule: e.target.checked,
-                    })
-                  }
-                  disabled={loading}
-                />
-                <Label htmlFor="useRecurringSchedule" className="cursor-pointer">
-                  繰り返しスケジュールを使用する
-                </Label>
+            <CardContent className="space-y-6">
+              {/* Recurring Schedule */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-700">繰り返し設定</h3>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="useRecurringSchedule"
+                    checked={formData.useRecurringSchedule}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        useRecurringSchedule: e.target.checked,
+                      })
+                    }
+                    disabled={loading}
+                  />
+                  <Label htmlFor="useRecurringSchedule" className="cursor-pointer">
+                    繰り返しスケジュールを使用する
+                  </Label>
+                </div>
+
+                {formData.useRecurringSchedule && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>実施曜日</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {dayNames.map((day, index) => (
+                          <div key={index} className="flex items-center">
+                            <Checkbox
+                              id={`day-${index}`}
+                              checked={formData.daysOfWeek.includes(index)}
+                              onChange={() => handleDayToggle(index)}
+                              disabled={loading}
+                            />
+                            <Label htmlFor={`day-${index}`} className="ml-2 cursor-pointer">
+                              {day}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="excludeHolidays"
+                        checked={formData.excludeHolidays}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            excludeHolidays: e.target.checked,
+                          })
+                        }
+                        disabled={loading}
+                      />
+                      <Label htmlFor="excludeHolidays" className="cursor-pointer">
+                        祝日は除外
+                      </Label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="startDate">開始日</Label>
+                        <Input
+                          id="startDate"
+                          type="date"
+                          value={formData.startDate}
+                          onChange={(e) =>
+                            setFormData({ ...formData, startDate: e.target.value })
+                          }
+                          disabled={loading}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="endDate">終了日</Label>
+                        <Input
+                          id="endDate"
+                          type="date"
+                          value={formData.endDate}
+                          onChange={(e) =>
+                            setFormData({ ...formData, endDate: e.target.value })
+                          }
+                          disabled={loading}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
-              {formData.useRecurringSchedule && (
-                <>
-                  <div className="space-y-2">
-                    <Label>実施曜日</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {dayNames.map((day, index) => (
-                        <div key={index} className="flex items-center">
-                          <Checkbox
-                            id={`day-${index}`}
-                            checked={formData.daysOfWeek.includes(index)}
-                            onChange={() => handleDayToggle(index)}
-                            disabled={loading}
-                          />
-                          <Label htmlFor={`day-${index}`} className="ml-2 cursor-pointer">
-                            {day}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              <div className="border-t pt-4"></div>
 
+              {/* Driver Assignment */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-700">デフォルト担当ドライバー</h3>
+                <p className="text-xs text-gray-500">
+                  この作業テンプレートから作成されるシフトのデフォルト担当者
+                </p>
+                <RadioGroup
+                  value={driverAssignmentType}
+                  onValueChange={(value) =>
+                    setDriverAssignmentType(value as DriverAssignmentType)
+                  }
+                  disabled={loading}
+                >
                   <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="excludeHolidays"
-                      checked={formData.excludeHolidays}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          excludeHolidays: e.target.checked,
-                        })
-                      }
-                      disabled={loading}
-                    />
-                    <Label htmlFor="excludeHolidays" className="cursor-pointer">
-                      祝日は除外
+                    <RadioGroupItem value="staff" id="staff" />
+                    <Label htmlFor="staff" className="cursor-pointer">
+                      スタッフから選択
                     </Label>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="startDate">開始日</Label>
-                      <Input
-                        id="startDate"
-                        type="date"
-                        value={formData.startDate}
-                        onChange={(e) =>
-                          setFormData({ ...formData, startDate: e.target.value })
-                        }
-                        disabled={loading}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="endDate">終了日</Label>
-                      <Input
-                        id="endDate"
-                        type="date"
-                        value={formData.endDate}
-                        onChange={(e) =>
-                          setFormData({ ...formData, endDate: e.target.value })
-                        }
-                        disabled={loading}
-                      />
-                    </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="unassigned" id="unassigned" />
+                    <Label htmlFor="unassigned" className="cursor-pointer">
+                      未定
+                    </Label>
                   </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="freetext" id="freetext" />
+                    <Label htmlFor="freetext" className="cursor-pointer">
+                      自由記入
+                    </Label>
+                  </div>
+                </RadioGroup>
 
-          {/* Driver Assignment */}
-          <Card>
-            <CardHeader>
-              <CardTitle>デフォルト担当ドライバー</CardTitle>
-              <CardDescription>
-                この作業テンプレートから作成されるシフトのデフォルト担当者
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <RadioGroup
-                value={driverAssignmentType}
-                onValueChange={(value) =>
-                  setDriverAssignmentType(value as DriverAssignmentType)
-                }
-                disabled={loading}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="staff" id="staff" />
-                  <Label htmlFor="staff" className="cursor-pointer">
-                    スタッフから選択
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="unassigned" id="unassigned" />
-                  <Label htmlFor="unassigned" className="cursor-pointer">
-                    未定
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="freetext" id="freetext" />
-                  <Label htmlFor="freetext" className="cursor-pointer">
-                    自由記入
-                  </Label>
-                </div>
-              </RadioGroup>
+                {driverAssignmentType === "staff" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="driverId">ドライバー選択</Label>
+                    <Select
+                      id="driverId"
+                      value={selectedDriverId}
+                      onChange={(e) => setSelectedDriverId(e.target.value)}
+                      disabled={loading}
+                    >
+                      <option value="">ドライバーを選択してください</option>
+                      {drivers.map((driver) => (
+                        <option key={driver.id} value={driver.id}>
+                          {driver.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
 
-              {driverAssignmentType === "staff" && (
-                <div className="space-y-2">
-                  <Label htmlFor="driverId">ドライバー選択</Label>
-                  <Select
-                    id="driverId"
-                    value={selectedDriverId}
-                    onChange={(e) => setSelectedDriverId(e.target.value)}
-                    disabled={loading}
-                  >
-                    <option value="">ドライバーを選択してください</option>
-                    {drivers.map((driver) => (
-                      <option key={driver.id} value={driver.id}>
-                        {driver.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              )}
+                {driverAssignmentType === "freetext" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="freetextName">担当者名</Label>
+                    <Input
+                      id="freetextName"
+                      placeholder="担当者名を入力"
+                      value={freetextDriverName}
+                      onChange={(e) => setFreetextDriverName(e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+                )}
 
-              {driverAssignmentType === "freetext" && (
-                <div className="space-y-2">
-                  <Label htmlFor="freetextName">担当者名</Label>
-                  <Input
-                    id="freetextName"
-                    placeholder="担当者名を入力"
-                    value={freetextDriverName}
-                    onChange={(e) => setFreetextDriverName(e.target.value)}
-                    disabled={loading}
-                  />
-                </div>
-              )}
-
-              {(driverAssignmentType === "staff" ||
-                driverAssignmentType === "freetext") && (
-                <div className="space-y-2">
-                  <Label htmlFor="driverPhone">連絡先電話番号（任意）</Label>
-                  <Input
-                    id="driverPhone"
-                    type="tel"
-                    placeholder="090-1234-5678"
-                    value={driverPhone}
-                    onChange={(e) => setDriverPhone(e.target.value)}
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-gray-500">
-                    将来の自動架電機能で使用されます
-                  </p>
-                </div>
-              )}
+                {(driverAssignmentType === "staff" ||
+                  driverAssignmentType === "freetext") && (
+                  <div className="space-y-2">
+                    <Label htmlFor="driverPhone">連絡先電話番号（任意）</Label>
+                    <Input
+                      id="driverPhone"
+                      type="tel"
+                      placeholder="090-1234-5678"
+                      value={driverPhone}
+                      onChange={(e) => setDriverPhone(e.target.value)}
+                      disabled={loading}
+                    />
+                    <p className="text-xs text-gray-500">
+                      将来の自動架電機能で使用されます
+                    </p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 

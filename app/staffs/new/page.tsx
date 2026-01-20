@@ -312,175 +312,185 @@ export default function NewStaffPage() {
             <CardHeader>
               <CardTitle>担当作業</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {workTemplates.length === 0 ? (
-                <p className="text-sm text-gray-500">作業マスタが登録されていません</p>
-              ) : (
-                workTemplates.map((template) => (
-                  <div key={template.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`template-${template.id}`}
-                      checked={formData.assignedWorkTemplateIds.includes(template.id)}
-                      onChange={() => handleWorkTemplateToggle(template.id)}
-                      disabled={loading}
-                    />
-                    <Label htmlFor={`template-${template.id}`} className="cursor-pointer">
-                      {template.name}
-                    </Label>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Escalation Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle>エスカレーション設定</CardTitle>
-            </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="isEscalationTarget"
-                  checked={formData.isEscalationTarget}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      isEscalationTarget: e.target.checked,
-                    })
-                  }
-                  disabled={loading}
-                />
-                <Label htmlFor="isEscalationTarget" className="cursor-pointer">
-                  エスカレーション受信対象にする
-                </Label>
-              </div>
-
               <div className="space-y-2">
-                <Label htmlFor="escalationGraceMinutes">
-                  エスカレーション猶予時間（分）
-                </Label>
-                <Input
-                  id="escalationGraceMinutes"
-                  name="escalationGraceMinutes"
-                  type="number"
-                  min="0"
-                  value={formData.escalationGraceMinutes}
-                  onChange={handleChange}
-                  disabled={loading}
-                />
+                <Label htmlFor="assignedWork">担当作業を選択または入力</Label>
+                {workTemplates.length > 0 ? (
+                  <Select
+                    id="assignedWork"
+                    value={formData.assignedWorkTemplateIds[0] || ""}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({
+                        ...formData,
+                        assignedWorkTemplateIds: value ? [value] : []
+                      });
+                    }}
+                    disabled={loading}
+                  >
+                    <option value="">選択してください</option>
+                    {workTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <p className="text-sm text-gray-500">作業マスタが登録されていません</p>
+                )}
                 <p className="text-xs text-gray-500">
-                  この時間を超えても応答がない場合にエスカレーションされます
+                  担当する作業を1つ選択してください
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Payment Settings - 管理者専用ページで設定 */}
-          {/*
+          {/* All Settings Consolidated */}
           <Card>
             <CardHeader>
-              <CardTitle>給料計算設定</CardTitle>
+              <CardTitle>各種設定</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                給与設定は「管理者専用」ページで行ってください
-              </p>
-            </CardContent>
-          </Card>
-          */}
+            <CardContent className="space-y-6">
+              {/* Escalation Settings */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-700">エスカレーション設定</h3>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="isEscalationTarget"
+                    checked={formData.isEscalationTarget}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        isEscalationTarget: e.target.checked,
+                      })
+                    }
+                    disabled={loading}
+                  />
+                  <Label htmlFor="isEscalationTarget" className="cursor-pointer">
+                    エスカレーション受信対象にする
+                  </Label>
+                </div>
 
-          {/* Recurring Schedule */}
-          <Card>
-            <CardHeader>
-              <CardTitle>繰り返し設定</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="useRecurringSchedule"
-                  checked={formData.useRecurringSchedule}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      useRecurringSchedule: e.target.checked,
-                    })
-                  }
-                  disabled={loading}
-                />
-                <Label htmlFor="useRecurringSchedule" className="cursor-pointer">
-                  繰り返しスケジュールを使用する
-                </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="escalationGraceMinutes">
+                    エスカレーション猶予時間（分）
+                  </Label>
+                  <Input
+                    id="escalationGraceMinutes"
+                    name="escalationGraceMinutes"
+                    type="number"
+                    min="0"
+                    value={formData.escalationGraceMinutes}
+                    onChange={handleChange}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-gray-500">
+                    この時間を超えても応答がない場合にエスカレーションされます
+                  </p>
+                </div>
               </div>
 
-              {formData.useRecurringSchedule && (
-                <>
-                  <div className="space-y-2">
-                    <Label>勤務曜日</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {dayNames.map((day, index) => (
-                        <div key={index} className="flex items-center">
-                          <Checkbox
-                            id={`day-${index}`}
-                            checked={formData.daysOfWeek.includes(index)}
-                            onChange={() => handleDayToggle(index)}
-                            disabled={loading}
-                          />
-                          <Label
-                            htmlFor={`day-${index}`}
-                            className="ml-2 cursor-pointer"
-                          >
-                            {day}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              <div className="border-t pt-4"></div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="excludeHolidays"
-                      checked={formData.excludeHolidays}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          excludeHolidays: e.target.checked,
-                        })
-                      }
-                      disabled={loading}
-                    />
-                    <Label htmlFor="excludeHolidays" className="cursor-pointer">
-                      祝日は休み
-                    </Label>
-                  </div>
+              {/* Recurring Schedule */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-700">繰り返し設定</h3>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="useRecurringSchedule"
+                    checked={formData.useRecurringSchedule}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        useRecurringSchedule: e.target.checked,
+                      })
+                    }
+                    disabled={loading}
+                  />
+                  <Label htmlFor="useRecurringSchedule" className="cursor-pointer">
+                    繰り返しスケジュールを使用する
+                  </Label>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                {formData.useRecurringSchedule && (
+                  <>
                     <div className="space-y-2">
-                      <Label htmlFor="startDate">開始日</Label>
-                      <Input
-                        id="startDate"
-                        name="startDate"
-                        type="date"
-                        value={formData.startDate}
-                        onChange={handleChange}
+                      <Label>勤務曜日</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {dayNames.map((day, index) => (
+                          <div key={index} className="flex items-center">
+                            <Checkbox
+                              id={`day-${index}`}
+                              checked={formData.daysOfWeek.includes(index)}
+                              onChange={() => handleDayToggle(index)}
+                              disabled={loading}
+                            />
+                            <Label
+                              htmlFor={`day-${index}`}
+                              className="ml-2 cursor-pointer"
+                            >
+                              {day}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="excludeHolidays"
+                        checked={formData.excludeHolidays}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            excludeHolidays: e.target.checked,
+                          })
+                        }
                         disabled={loading}
                       />
+                      <Label htmlFor="excludeHolidays" className="cursor-pointer">
+                        祝日は休み
+                      </Label>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="endDate">終了日</Label>
-                      <Input
-                        id="endDate"
-                        name="endDate"
-                        type="date"
-                        value={formData.endDate}
-                        onChange={handleChange}
-                        disabled={loading}
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="startDate">開始日</Label>
+                        <Input
+                          id="startDate"
+                          name="startDate"
+                          type="date"
+                          value={formData.startDate}
+                          onChange={handleChange}
+                          disabled={loading}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="endDate">終了日</Label>
+                        <Input
+                          id="endDate"
+                          name="endDate"
+                          type="date"
+                          value={formData.endDate}
+                          onChange={handleChange}
+                          disabled={loading}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </div>
+
+              <div className="border-t pt-4"></div>
+
+              {/* Payment Settings Note */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-gray-700">給料計算設定</h3>
+                <p className="text-sm text-muted-foreground">
+                  給与設定は「管理者専用」ページで行ってください
+                </p>
+              </div>
             </CardContent>
           </Card>
 
