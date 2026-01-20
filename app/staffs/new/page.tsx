@@ -32,7 +32,12 @@ export default function NewStaffPage() {
     // License management
     licenseExpiryDate: "",
     licenseNotificationEnabled: true,
-    escalationGraceMinutes: 30,
+    escalationGraceMinutes: 5,
+
+    // Escalation notification methods
+    escalation1stMethod: "sms" as "sms" | "call",
+    escalation2ndMethod: "sms" as "sms" | "call",
+    escalation3rdMethod: "call" as "sms" | "call",
 
     // Assigned work templates
     assignedWorkTemplateIds: [] as string[],
@@ -307,43 +312,6 @@ export default function NewStaffPage() {
             </CardContent>
           </Card>
 
-          {/* Work Assignment */}
-          <Card>
-            <CardHeader>
-              <CardTitle>担当作業</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="assignedWork">担当作業を選択または入力</Label>
-                {workTemplates.length > 0 ? (
-                  <Select
-                    id="assignedWork"
-                    value={formData.assignedWorkTemplateIds[0] || ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData({
-                        ...formData,
-                        assignedWorkTemplateIds: value ? [value] : []
-                      });
-                    }}
-                    disabled={loading}
-                  >
-                    <option value="">選択してください</option>
-                    {workTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </Select>
-                ) : (
-                  <p className="text-sm text-gray-500">作業マスタが登録されていません</p>
-                )}
-                <p className="text-xs text-gray-500">
-                  担当する作業を1つ選択してください
-                </p>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* All Settings Consolidated */}
           <Card>
@@ -351,41 +319,36 @@ export default function NewStaffPage() {
               <CardTitle>各種設定</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Escalation Settings */}
+              {/* Work Assignment */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-700">エスカレーション設定</h3>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="isEscalationTarget"
-                    checked={formData.isEscalationTarget}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        isEscalationTarget: e.target.checked,
-                      })
-                    }
-                    disabled={loading}
-                  />
-                  <Label htmlFor="isEscalationTarget" className="cursor-pointer">
-                    エスカレーション受信対象にする
-                  </Label>
-                </div>
-
+                <h3 className="text-sm font-semibold text-gray-700">担当作業</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="escalationGraceMinutes">
-                    エスカレーション猶予時間（分）
-                  </Label>
-                  <Input
-                    id="escalationGraceMinutes"
-                    name="escalationGraceMinutes"
-                    type="number"
-                    min="0"
-                    value={formData.escalationGraceMinutes}
-                    onChange={handleChange}
-                    disabled={loading}
-                  />
+                  <Label htmlFor="assignedWork">担当作業を選択または入力</Label>
+                  {workTemplates.length > 0 ? (
+                    <Select
+                      id="assignedWork"
+                      value={formData.assignedWorkTemplateIds[0] || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFormData({
+                          ...formData,
+                          assignedWorkTemplateIds: value ? [value] : []
+                        });
+                      }}
+                      disabled={loading}
+                    >
+                      <option value="">選択してください</option>
+                      {workTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <p className="text-sm text-gray-500">作業マスタが登録されていません</p>
+                  )}
                   <p className="text-xs text-gray-500">
-                    この時間を超えても応答がない場合にエスカレーションされます
+                    担当する作業を1つ選択してください
                   </p>
                 </div>
               </div>
@@ -484,12 +447,99 @@ export default function NewStaffPage() {
 
               <div className="border-t pt-4"></div>
 
-              {/* Payment Settings Note */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold text-gray-700">給料計算設定</h3>
-                <p className="text-sm text-muted-foreground">
-                  給与設定は「管理者専用」ページで行ってください
-                </p>
+              {/* Escalation Settings */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-700">エスカレーション設定</h3>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="isEscalationTarget"
+                    checked={formData.isEscalationTarget}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        isEscalationTarget: e.target.checked,
+                      })
+                    }
+                    disabled={loading}
+                  />
+                  <Label htmlFor="isEscalationTarget" className="cursor-pointer">
+                    エスカレーション受信対象にする
+                  </Label>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="escalationGraceMinutes">
+                    エスカレーション猶予時間（分）
+                  </Label>
+                  <Input
+                    id="escalationGraceMinutes"
+                    name="escalationGraceMinutes"
+                    type="number"
+                    min="0"
+                    value={formData.escalationGraceMinutes}
+                    onChange={handleChange}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-gray-500">
+                    電話に出たが出勤メッセージが送られてこない場合、次の担当者に電話するまでの時間（デフォルト：5分）
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="escalation1stMethod">1人目の通知方法</Label>
+                    <Select
+                      id="escalation1stMethod"
+                      value={formData.escalation1stMethod}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          escalation1stMethod: e.target.value as "sms" | "call",
+                        })
+                      }
+                      disabled={loading}
+                    >
+                      <option value="sms">SMS</option>
+                      <option value="call">電話</option>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="escalation2ndMethod">2人目の通知方法</Label>
+                    <Select
+                      id="escalation2ndMethod"
+                      value={formData.escalation2ndMethod}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          escalation2ndMethod: e.target.value as "sms" | "call",
+                        })
+                      }
+                      disabled={loading}
+                    >
+                      <option value="sms">SMS</option>
+                      <option value="call">電話</option>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="escalation3rdMethod">3人目の通知方法</Label>
+                    <Select
+                      id="escalation3rdMethod"
+                      value={formData.escalation3rdMethod}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          escalation3rdMethod: e.target.value as "sms" | "call",
+                        })
+                      }
+                      disabled={loading}
+                    >
+                      <option value="sms">SMS</option>
+                      <option value="call">電話</option>
+                    </Select>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

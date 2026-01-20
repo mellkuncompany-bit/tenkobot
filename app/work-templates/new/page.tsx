@@ -31,13 +31,13 @@ export default function NewWorkTemplatePage() {
     description: "",
     notes: "",
     reportCheckTime: "",
+    workDate: "", // 作業日（何月何日）
 
     // Recurring schedule
     useRecurringSchedule: false,
     daysOfWeek: [] as number[],
     excludeHolidays: false,
-    startDate: "",
-    endDate: "",
+    endDate: "", // 開始日は削除、終了日のみ
   });
 
   // Driver assignment state
@@ -73,7 +73,7 @@ export default function NewWorkTemplatePage() {
         ? {
             daysOfWeek: formData.daysOfWeek,
             excludeHolidays: formData.excludeHolidays,
-            startDate: formData.startDate || null,
+            startDate: null, // 開始日は不要
             endDate: formData.endDate || null,
           }
         : null;
@@ -181,6 +181,22 @@ export default function NewWorkTemplatePage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="workDate">作業日</Label>
+                <Input
+                  id="workDate"
+                  type="date"
+                  value={formData.workDate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, workDate: e.target.value })
+                  }
+                  disabled={loading}
+                />
+                <p className="text-xs text-gray-500">
+                  作業を実施する日付を選択してください
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="reportCheckTime">作業報告確認時刻</Label>
                 <Input
                   id="reportCheckTime"
@@ -283,32 +299,20 @@ export default function NewWorkTemplatePage() {
                       </Label>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="startDate">開始日</Label>
-                        <Input
-                          id="startDate"
-                          type="date"
-                          value={formData.startDate}
-                          onChange={(e) =>
-                            setFormData({ ...formData, startDate: e.target.value })
-                          }
-                          disabled={loading}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="endDate">終了日</Label>
-                        <Input
-                          id="endDate"
-                          type="date"
-                          value={formData.endDate}
-                          onChange={(e) =>
-                            setFormData({ ...formData, endDate: e.target.value })
-                          }
-                          disabled={loading}
-                        />
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="endDate">終了日（任意）</Label>
+                      <Input
+                        id="endDate"
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, endDate: e.target.value })
+                        }
+                        disabled={loading}
+                      />
+                      <p className="text-xs text-gray-500">
+                        未定の場合は空欄のままで構いません
+                      </p>
                     </div>
                   </>
                 )}
