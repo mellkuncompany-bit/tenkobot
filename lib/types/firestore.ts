@@ -27,6 +27,7 @@ export interface Organization {
     isConfigured: boolean;
     configuredAt: Timestamp | null;
   } | null;
+  adminPasswordHash: string | null; // 管理者専用ページのパスワード（ハッシュ化）
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

@@ -221,6 +221,8 @@ export default function NewWorkTemplatePage() {
                 </div>
               </div>
 
+              {/* 単価設定は管理者専用ページで設定 */}
+              {/*
               <div className="space-y-2">
                 <Label htmlFor="unitPrice">単価（円）</Label>
                 <Input
@@ -235,9 +237,10 @@ export default function NewWorkTemplatePage() {
                   disabled={loading}
                 />
                 <p className="text-xs text-gray-500">
-                  請求書生成時に使用される単価です
+                  請求書生成時に使用される単価は「管理者専用」ページで設定してください
                 </p>
               </div>
+              */}
             </CardContent>
           </Card>
 

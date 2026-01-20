@@ -20,6 +20,7 @@ import {
   Truck,
   Bell,
   BookOpen,
+  Lock,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -32,12 +33,11 @@ const navigation = [
   { name: "スタッフ・作業管理", href: "/staffs", icon: Users },
   { name: "シフト管理", href: "/shifts", icon: Calendar },
   { name: "勤怠管理", href: "/attendance", icon: Clock },
-  { name: "給料明細", href: "/payroll", icon: DollarSign },
-  { name: "請求書", href: "/invoices", icon: FileText },
   { name: "車両・燃料", href: "/vehicles", icon: Truck },
   { name: "リマインダー", href: "/reminders", icon: Bell },
   { name: "作業マニュアル", href: "/documents", icon: BookOpen },
   { name: "エスカレーション設定", href: "/escalation-policies", icon: AlertTriangle },
+  { name: "管理者専用", href: "/admin-settings", icon: Lock },
   { name: "ログ", href: "/logs", icon: FileText },
   { name: "設定", href: "/settings", icon: Settings },
 ];

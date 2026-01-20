@@ -376,93 +376,19 @@ export default function NewStaffPage() {
             </CardContent>
           </Card>
 
-          {/* Payment Settings */}
+          {/* Payment Settings - 管理者専用ページで設定 */}
+          {/*
           <Card>
             <CardHeader>
               <CardTitle>給料計算設定</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="paymentType">給与形態</Label>
-                <Select
-                  id="paymentType"
-                  name="paymentType"
-                  value={formData.paymentType}
-                  onChange={handleChange}
-                  disabled={loading}
-                >
-                  <option value="hourly">時給</option>
-                  <option value="daily">日給</option>
-                  <option value="monthly">月給</option>
-                </Select>
-              </div>
-
-              {formData.paymentType === "hourly" && (
-                <div className="space-y-2">
-                  <Label htmlFor="hourlyRate">時給（円）</Label>
-                  <Input
-                    id="hourlyRate"
-                    name="hourlyRate"
-                    type="number"
-                    min="0"
-                    placeholder="1500"
-                    value={formData.hourlyRate}
-                    onChange={handleChange}
-                    disabled={loading}
-                  />
-                </div>
-              )}
-
-              {formData.paymentType === "daily" && (
-                <div className="space-y-2">
-                  <Label htmlFor="dailyRate">日給（円）</Label>
-                  <Input
-                    id="dailyRate"
-                    name="dailyRate"
-                    type="number"
-                    min="0"
-                    placeholder="12000"
-                    value={formData.dailyRate}
-                    onChange={handleChange}
-                    disabled={loading}
-                  />
-                </div>
-              )}
-
-              {formData.paymentType === "monthly" && (
-                <div className="space-y-2">
-                  <Label htmlFor="monthlyRate">月給（円）</Label>
-                  <Input
-                    id="monthlyRate"
-                    name="monthlyRate"
-                    type="number"
-                    min="0"
-                    placeholder="250000"
-                    value={formData.monthlyRate}
-                    onChange={handleChange}
-                    disabled={loading}
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="overtimeRate">残業単価（円/時間）</Label>
-                <Input
-                  id="overtimeRate"
-                  name="overtimeRate"
-                  type="number"
-                  min="0"
-                  placeholder="1875"
-                  value={formData.overtimeRate}
-                  onChange={handleChange}
-                  disabled={loading}
-                />
-                <p className="text-xs text-gray-500">
-                  未入力の場合、基本給から自動計算されます（時給の1.25倍など）
-                </p>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                給与設定は「管理者専用」ページで行ってください
+              </p>
             </CardContent>
           </Card>
+          */}
 
           {/* Recurring Schedule */}
           <Card>
