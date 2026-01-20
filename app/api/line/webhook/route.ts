@@ -252,6 +252,12 @@ async function handleClockOut(lineUserId: string, staffId: string, shiftId: stri
  * Handle image messages for fuel receipt OCR
  */
 async function handleImageMessage(event: any, organizationId: string) {
+  // TODO: Implement fuel receipt OCR functionality
+  // This feature is currently under development
+  console.log("[Fuel Receipt] Image message received, but OCR feature is not yet implemented");
+  return;
+
+  /* TEMPORARILY DISABLED - TO BE IMPLEMENTED
   const { message, source } = event;
   const { userId } = source;
   const { id: messageId } = message;
@@ -353,6 +359,7 @@ async function handleImageMessage(event: any, organizationId: string) {
       },
     ]);
   }
+  */
 }
 
 /**
