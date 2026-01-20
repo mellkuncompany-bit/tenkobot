@@ -10,13 +10,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select as ShadcnSelect,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createShift } from "@/lib/services/shift-service";
 import { getStaffs, getStaffsByRole } from "@/lib/services/staff-service";
@@ -355,22 +348,19 @@ export default function NewShiftPage() {
                     {driverAssignmentType === "staff" && (
                       <div className="space-y-2">
                         <Label htmlFor="driverId">ドライバー選択</Label>
-                        <ShadcnSelect
+                        <Select
+                          id="driverId"
                           value={selectedDriverId}
-                          onValueChange={setSelectedDriverId}
+                          onChange={(e) => setSelectedDriverId(e.target.value)}
                           disabled={loading}
                         >
-                          <SelectTrigger id="driverId">
-                            <SelectValue placeholder="ドライバーを選択してください" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {drivers.map((driver) => (
-                              <SelectItem key={driver.id} value={driver.id}>
-                                {driver.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </ShadcnSelect>
+                          <option value="">ドライバーを選択してください</option>
+                          {drivers.map((driver) => (
+                            <option key={driver.id} value={driver.id}>
+                              {driver.name}
+                            </option>
+                          ))}
+                        </Select>
                       </div>
                     )}
 

@@ -22,15 +22,21 @@ export async function getStaffs(organizationId: string): Promise<Staff[]> {
   const q = query(
     collection(db, COLLECTIONS.STAFFS),
     where("organizationId", "==", organizationId),
-    where("isActive", "==", true),
-    orderBy("createdAt", "desc")
+    where("isActive", "==", true)
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({
+  const staffs = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
   })) as Staff[];
+
+  // Sort by createdAt on the client side to avoid needing a composite index
+  return staffs.sort((a, b) => {
+    const aTime = a.createdAt?.toMillis?.() || 0;
+    const bTime = b.createdAt?.toMillis?.() || 0;
+    return bTime - aTime; // desc order
+  });
 }
 
 /**
@@ -93,9 +99,74 @@ export async function deleteStaff(staffId: string): Promise<void> {
  */
 export function getStaffRoleDisplay(role: StaffRole): string {
   const roleMap: Record<StaffRole, string> = {
-    general: "一般",
-    leader: "リーダー",
-    assistant: "管理補助",
+    driver: "ドライバー",
+    manager: "管理者",
+    owner: "経営者",
   };
   return roleMap[role];
+}
+
+/**
+ * Get staffs by role
+ */
+export async function getStaffsByRole(
+  organizationId: string,
+  role: StaffRole
+): Promise<Staff[]> {
+  const q = query(
+    collection(db, COLLECTIONS.STAFFS),
+    where("organizationId", "==", organizationId),
+    where("isActive", "==", true),
+    where("role", "==", role)
+  );
+
+  const snapshot = await getDocs(q);
+  const staffs = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Staff[];
+
+  return staffs.sort((a, b) => {
+    const aTime = a.createdAt?.toMillis?.() || 0;
+    const bTime = b.createdAt?.toMillis?.() || 0;
+    return bTime - aTime;
+  });
+}
+
+/**
+ * Get drivers with license expiring within specified days
+ */
+export async function getDriversWithExpiringLicense(
+  organizationId: string,
+  withinDays: number
+): Promise<Staff[]> {
+  const q = query(
+    collection(db, COLLECTIONS.STAFFS),
+    where("organizationId", "==", organizationId),
+    where("isActive", "==", true),
+    where("licenseNotificationEnabled", "==", true)
+  );
+
+  const snapshot = await getDocs(q);
+  const staffs = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Staff[];
+
+  // Filter staffs with license expiring within specified days
+  const now = new Date();
+  const targetDate = new Date();
+  targetDate.setDate(targetDate.getDate() + withinDays);
+
+  return staffs
+    .filter((staff) => {
+      if (!staff.licenseExpiryDate) return false;
+      const licenseDate = staff.licenseExpiryDate.toDate();
+      return licenseDate >= now && licenseDate <= targetDate;
+    })
+    .sort((a, b) => {
+      const aTime = a.licenseExpiryDate?.toMillis?.() || 0;
+      const bTime = b.licenseExpiryDate?.toMillis?.() || 0;
+      return aTime - bTime; // asc order (earliest first)
+    });
 }

@@ -15,6 +15,12 @@ import type {
   EscalationPolicy,
   NotificationLog,
   EscalationExecution,
+  Vehicle,
+  FuelReceipt,
+  PayrollRecord,
+  Invoice,
+  Document,
+  Announcement,
 } from "@/lib/types/firestore";
 
 // Collection names
@@ -28,6 +34,12 @@ export const COLLECTIONS = {
   ESCALATION_POLICIES: "escalationPolicies",
   NOTIFICATIONS_LOG: "notificationsLog",
   ESCALATION_EXECUTIONS: "escalationExecutions",
+  VEHICLES: "vehicles",
+  FUEL_RECEIPTS: "fuelReceipts",
+  PAYROLL_RECORDS: "payrollRecords",
+  INVOICES: "invoices",
+  DOCUMENTS: "documents",
+  ANNOUNCEMENTS: "announcements",
 } as const;
 
 // Collection references
@@ -85,3 +97,39 @@ export const notificationLogDoc = (id: string) =>
 
 export const escalationExecutionDoc = (id: string) =>
   doc(db, COLLECTIONS.ESCALATION_EXECUTIONS, id) as DocumentReference<EscalationExecution>;
+
+export const vehiclesCol = () =>
+  collection(db, COLLECTIONS.VEHICLES) as CollectionReference<Vehicle>;
+
+export const vehicleDoc = (id: string) =>
+  doc(db, COLLECTIONS.VEHICLES, id) as DocumentReference<Vehicle>;
+
+export const fuelReceiptsCol = () =>
+  collection(db, COLLECTIONS.FUEL_RECEIPTS) as CollectionReference<FuelReceipt>;
+
+export const fuelReceiptDoc = (id: string) =>
+  doc(db, COLLECTIONS.FUEL_RECEIPTS, id) as DocumentReference<FuelReceipt>;
+
+export const payrollRecordsCol = () =>
+  collection(db, COLLECTIONS.PAYROLL_RECORDS) as CollectionReference<PayrollRecord>;
+
+export const payrollRecordDoc = (id: string) =>
+  doc(db, COLLECTIONS.PAYROLL_RECORDS, id) as DocumentReference<PayrollRecord>;
+
+export const invoicesCol = () =>
+  collection(db, COLLECTIONS.INVOICES) as CollectionReference<Invoice>;
+
+export const invoiceDoc = (id: string) =>
+  doc(db, COLLECTIONS.INVOICES, id) as DocumentReference<Invoice>;
+
+export const documentsCol = () =>
+  collection(db, COLLECTIONS.DOCUMENTS) as CollectionReference<Document>;
+
+export const documentDoc = (id: string) =>
+  doc(db, COLLECTIONS.DOCUMENTS, id) as DocumentReference<Document>;
+
+export const announcementsCol = () =>
+  collection(db, COLLECTIONS.ANNOUNCEMENTS) as CollectionReference<Announcement>;
+
+export const announcementDoc = (id: string) =>
+  doc(db, COLLECTIONS.ANNOUNCEMENTS, id) as DocumentReference<Announcement>;

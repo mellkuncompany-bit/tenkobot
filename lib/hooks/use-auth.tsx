@@ -3,28 +3,39 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/client";
-import { Admin } from "@/lib/types/firestore";
-import { doc, getDoc } from "firebase/firestore";
+import { Admin, Staff, StaffRole } from "@/lib/types/firestore";
+import { doc, getDoc, query, where, collection, getDocs } from "firebase/firestore";
 import { COLLECTIONS } from "@/lib/firebase/collections";
 import { Timestamp } from "firebase/firestore";
 
 interface AuthContextType {
   user: User | null;
   admin: Admin | null;
+  staff: Staff | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  isOwner: boolean;
+  isManager: boolean;
+  isDriver: boolean;
+  hasRole: (role: StaffRole) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   admin: null,
+  staff: null,
   loading: true,
   signOut: async () => {},
+  isOwner: false,
+  isManager: false,
+  isDriver: false,
+  hasRole: () => false,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [admin, setAdmin] = useState<Admin | null>(null);
+  const [staff, setStaff] = useState<Staff | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,10 +50,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const adminSnap = await getDoc(adminRef);
 
           if (adminSnap.exists()) {
-            setAdmin({ id: adminSnap.id, ...adminSnap.data() } as Admin);
+            const adminData = { id: adminSnap.id, ...adminSnap.data() } as Admin;
+            setAdmin(adminData);
+
+            // Fetch staff data if admin has an organization
+            if (adminData.organizationId) {
+              try {
+                const staffQuery = query(
+                  collection(db, COLLECTIONS.STAFFS),
+                  where("organizationId", "==", adminData.organizationId),
+                  where("lineUserId", "==", firebaseUser.uid)
+                );
+                const staffSnap = await getDocs(staffQuery);
+
+                if (!staffSnap.empty) {
+                  const staffDoc = staffSnap.docs[0];
+                  setStaff({ id: staffDoc.id, ...staffDoc.data() } as Staff);
+                } else {
+                  setStaff(null);
+                }
+              } catch (error) {
+                console.error("Error fetching staff data:", error);
+                setStaff(null);
+              }
+            }
           } else {
             console.log("Admin document does not exist yet for user:", firebaseUser.uid);
             setAdmin(null);
+            setStaff(null);
           }
         } catch (error: any) {
           console.error("Error fetching admin data:", error);
@@ -55,9 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.log("Firestore temporarily unavailable, will retry on next auth state change");
           }
           setAdmin(null);
+          setStaff(null);
         }
       } else {
         setAdmin(null);
+        setStaff(null);
       }
 
       setLoading(false);
@@ -72,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await firebaseSignOut(auth);
       setUser(null);
       setAdmin(null);
+      setStaff(null);
 
       // ローカルストレージとセッションストレージをクリア
       if (typeof window !== 'undefined') {
@@ -83,11 +121,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // エラーが発生してもstateはクリア
       setUser(null);
       setAdmin(null);
+      setStaff(null);
     }
   };
 
+  // Role checking helpers
+  const isOwner = staff?.role === "owner";
+  const isManager = staff?.role === "manager";
+  const isDriver = staff?.role === "driver";
+  const hasRole = (role: StaffRole) => staff?.role === role;
+
   return (
-    <AuthContext.Provider value={{ user, admin, loading, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        admin,
+        staff,
+        loading,
+        signOut,
+        isOwner,
+        isManager,
+        isDriver,
+        hasRole,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
