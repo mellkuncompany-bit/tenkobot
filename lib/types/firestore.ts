@@ -74,6 +74,7 @@ export interface Staff {
   licenseExpiryDate: Timestamp | null;
   licenseNotificationEnabled: boolean;
   assignedWorkTemplateIds: string[];
+  assignedWorkFreetext: string | null; // 自由記入の担当作業
   escalationGraceMinutes: number;
 
   // Escalation staff settings

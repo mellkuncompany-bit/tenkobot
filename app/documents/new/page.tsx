@@ -13,6 +13,8 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { createDocument } from "@/lib/services/document-service";
 import { DocumentCategory } from "@/lib/types/firestore";
 import { ArrowLeft, Upload } from "lucide-react";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "@/lib/firebase/client";
 
 export default function NewDocumentPage() {
   const { admin } = useAuth();
@@ -49,12 +51,17 @@ export default function NewDocumentPage() {
     setLoading(true);
 
     try {
-      // Note: In a real implementation, you would upload the file to Cloud Storage first
-      // and get the fileUrl. This is a simplified version.
+      // Upload file to Firebase Storage
+      const timestamp = Date.now();
+      const sanitizedFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storagePath = `documents/${admin.organizationId}/${timestamp}_${sanitizedFileName}`;
+      const storageRef = ref(storage, storagePath);
 
-      // For now, we'll create a placeholder URL
-      // In production, implement proper file upload to Cloud Storage
-      const fileUrl = `/uploads/${selectedFile.name}`; // Placeholder
+      // Upload the file
+      await uploadBytes(storageRef, selectedFile);
+
+      // Get the download URL
+      const fileUrl = await getDownloadURL(storageRef);
 
       await createDocument({
         organizationId: admin.organizationId,

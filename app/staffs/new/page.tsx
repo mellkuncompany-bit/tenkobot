@@ -45,7 +45,9 @@ export default function NewStaffPage() {
     escalation3rdMethod: "call" as "sms" | "call",
 
     // Assigned work templates
+    workAssignmentType: "unassigned" as "template" | "freetext" | "unassigned",
     assignedWorkTemplateIds: [] as string[],
+    assignedWorkFreetext: "",
 
     // Payment settings
     paymentType: "hourly" as PaymentType,
@@ -166,6 +168,7 @@ export default function NewStaffPage() {
         licenseExpiryDate,
         licenseNotificationEnabled: formData.licenseNotificationEnabled,
         assignedWorkTemplateIds: formData.assignedWorkTemplateIds,
+        assignedWorkFreetext: formData.assignedWorkFreetext || null,
         escalationGraceMinutes: parseInt(formData.escalationGraceMinutes.toString()) || 30,
 
         // Escalation staff settings
@@ -339,31 +342,77 @@ export default function NewStaffPage() {
               {/* Work Assignment */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-gray-700">担当作業</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="assignedWork">担当作業を選択または入力</Label>
-                  <Select
-                    id="assignedWork"
-                    value={formData.assignedWorkTemplateIds[0] || ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData({
+
+                <RadioGroup
+                  value={formData.workAssignmentType}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    workAssignmentType: e.target.value as "template" | "freetext" | "unassigned",
+                    assignedWorkTemplateIds: [],
+                    assignedWorkFreetext: ""
+                  })}
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="template" id="work-template" />
+                    <Label htmlFor="work-template" className="cursor-pointer">
+                      作業テンプレートから選択
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="freetext" id="work-freetext" />
+                    <Label htmlFor="work-freetext" className="cursor-pointer">
+                      自由記入
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="unassigned" id="work-unassigned" />
+                    <Label htmlFor="work-unassigned" className="cursor-pointer">
+                      未定
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {formData.workAssignmentType === "template" && (
+                  <div className="space-y-2 ml-6">
+                    <Label htmlFor="assignedWork">作業を選択</Label>
+                    <Select
+                      id="assignedWork"
+                      value={formData.assignedWorkTemplateIds[0] || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setFormData({
+                          ...formData,
+                          assignedWorkTemplateIds: value ? [value] : []
+                        });
+                      }}
+                      disabled={loading}
+                    >
+                      <option value="">選択してください</option>
+                      {workTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
+
+                {formData.workAssignmentType === "freetext" && (
+                  <div className="space-y-2 ml-6">
+                    <Label htmlFor="assignedWorkFreetext">担当作業を入力</Label>
+                    <Input
+                      id="assignedWorkFreetext"
+                      type="text"
+                      placeholder="例：東京エリア配送、荷物仕分け"
+                      value={formData.assignedWorkFreetext}
+                      onChange={(e) => setFormData({
                         ...formData,
-                        assignedWorkTemplateIds: value ? [value] : []
-                      });
-                    }}
-                    disabled={loading}
-                  >
-                    <option value="">未定</option>
-                    {workTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </Select>
-                  <p className="text-xs text-gray-500">
-                    担当する作業を選択してください（未定でもOK）
-                  </p>
-                </div>
+                        assignedWorkFreetext: e.target.value
+                      })}
+                      disabled={loading}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="border-t pt-4"></div>
