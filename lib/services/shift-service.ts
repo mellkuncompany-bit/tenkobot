@@ -114,17 +114,23 @@ export async function getUnassignedShifts(
   endDate?: string
 ): Promise<Shift[]> {
   // Build query with date range if provided
-  const constraints = [where("organizationId", "==", organizationId)];
+  let q;
 
   if (startDate && endDate) {
-    constraints.push(where("date", ">=", startDate));
-    constraints.push(where("date", "<=", endDate));
-    constraints.push(orderBy("date", "asc"));
+    q = query(
+      collection(db, COLLECTIONS.SHIFTS),
+      where("organizationId", "==", organizationId),
+      where("date", ">=", startDate),
+      where("date", "<=", endDate),
+      orderBy("date", "asc")
+    );
   } else {
-    constraints.push(orderBy("date", "asc"));
+    q = query(
+      collection(db, COLLECTIONS.SHIFTS),
+      where("organizationId", "==", organizationId),
+      orderBy("date", "asc")
+    );
   }
-
-  const q = query(collection(db, COLLECTIONS.SHIFTS), ...constraints);
 
   const snapshot = await getDocs(q);
   const shifts = snapshot.docs.map((doc) => ({
