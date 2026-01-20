@@ -345,9 +345,9 @@ export default function NewStaffPage() {
 
                 <RadioGroup
                   value={formData.workAssignmentType}
-                  onChange={(e) => setFormData({
+                  onValueChange={(value) => setFormData({
                     ...formData,
-                    workAssignmentType: e.target.value as "template" | "freetext" | "unassigned",
+                    workAssignmentType: value as "template" | "freetext" | "unassigned",
                     assignedWorkTemplateIds: [],
                     assignedWorkFreetext: ""
                   })}
