@@ -284,8 +284,9 @@ export default function NewShiftPage() {
                   <Checkbox
                     id="overrideDriverAssignment"
                     checked={overrideDriverAssignment}
-                    onCheckedChange={(checked) => {
-                      setOverrideDriverAssignment(checked as boolean);
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setOverrideDriverAssignment(checked);
                       if (!checked) {
                         // Reset to template default
                         const da = selectedWorkTemplate?.defaultDriverAssignment;
