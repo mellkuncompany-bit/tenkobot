@@ -158,10 +158,10 @@ export default function DocumentsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredDocuments.map((doc) => (
-                    <TableRow key={doc.id}>
+                    <TableRow key={doc.id} className="cursor-pointer hover:bg-gray-50" onClick={() => router.push(`/documents/${doc.id}`)}>
                       <TableCell className="font-medium">
                         <div>
-                          <div>{doc.title}</div>
+                          <div className="text-blue-600 hover:underline">{doc.title}</div>
                           {doc.description && (
                             <div className="text-xs text-gray-500 mt-1">
                               {doc.description}

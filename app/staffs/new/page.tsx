@@ -168,6 +168,14 @@ export default function NewStaffPage() {
         assignedWorkTemplateIds: formData.assignedWorkTemplateIds,
         escalationGraceMinutes: parseInt(formData.escalationGraceMinutes.toString()) || 30,
 
+        // Escalation staff settings
+        escalation1stStaffId: formData.escalation1stStaffId || null,
+        escalation1stMethod: formData.escalation1stMethod,
+        escalation2ndStaffId: formData.escalation2ndStaffId || null,
+        escalation2ndMethod: formData.escalation2ndMethod,
+        escalation3rdStaffId: formData.escalation3rdStaffId || null,
+        escalation3rdMethod: formData.escalation3rdMethod,
+
         paymentType: formData.paymentType,
         hourlyRate,
         dailyRate,

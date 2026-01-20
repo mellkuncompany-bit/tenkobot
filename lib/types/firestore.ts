@@ -76,6 +76,14 @@ export interface Staff {
   assignedWorkTemplateIds: string[];
   escalationGraceMinutes: number;
 
+  // Escalation staff settings
+  escalation1stStaffId: string | null;
+  escalation1stMethod: "sms" | "call";
+  escalation2ndStaffId: string | null;
+  escalation2ndMethod: "sms" | "call";
+  escalation3rdStaffId: string | null;
+  escalation3rdMethod: "sms" | "call";
+
   // Payment settings
   paymentType: PaymentType;
   hourlyRate: number | null;
