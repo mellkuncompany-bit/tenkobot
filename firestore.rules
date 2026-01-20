@@ -20,38 +20,19 @@ service cloud.firestore {
       return isAdmin() && getAdmin().organizationId == organizationId;
     }
 
-    // Get staff document for current user
-    function getStaff() {
-      let admin = getAdmin();
-      return get(/databases/$(database)/documents/staffs/$(request.auth.uid)).data;
+    function getAdminRole() {
+      return getAdmin().role;
     }
 
-    // Check if user has a specific role
-    function hasRole(role) {
-      return isAdmin() && getStaff().role == role;
-    }
-
-    function isOwner() {
-      return isAdmin() && getStaff().role == 'owner';
-    }
-
-    function isManager() {
-      return isAdmin() && getStaff().role == 'manager';
-    }
-
-    function isManagerOrOwner() {
-      return isAdmin() && getStaff().role in ['manager', 'owner'];
-    }
-
-    function isDriver() {
-      return isAdmin() && getStaff().role == 'driver';
+    function isOwnerRole() {
+      return isAdmin() && getAdminRole() == 'owner';
     }
 
     // Organizations
     match /organizations/{orgId} {
       allow read: if belongsToOrganization(orgId);
       allow create: if isAuthenticated() && request.auth.uid == orgId;
-      allow update, delete: if belongsToOrganization(orgId) && getAdmin().role == 'owner';
+      allow update, delete: if belongsToOrganization(orgId) && isOwnerRole();
     }
 
     // Admins
@@ -84,11 +65,8 @@ service cloud.firestore {
 
     // Attendance Records
     match /attendanceRecords/{recordId} {
-      allow read: if isAuthenticated() && (
-        (resource.data.staffId == request.auth.uid) || // Staff can read their own
-        (isManagerOrOwner() && belongsToOrganization(resource.data.organizationId)) // Managers/Owners can read all
-      );
-      allow write: if isManagerOrOwner() && belongsToOrganization(resource.data.organizationId);
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow write: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
     }
 
     // Escalation Policies
@@ -113,46 +91,42 @@ service cloud.firestore {
     // Vehicles
     match /vehicles/{vehicleId} {
       allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
-      allow create: if isManagerOrOwner() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isManagerOrOwner() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
     }
 
     // Fuel Receipts
     match /fuelReceipts/{receiptId} {
       allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
       allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
-      allow update: if isManagerOrOwner() && belongsToOrganization(resource.data.organizationId);
-      allow delete: if isManagerOrOwner() && belongsToOrganization(resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
     }
 
     // Payroll Records
     match /payrollRecords/{recordId} {
-      allow read: if isAuthenticated() && (
-        (resource.data.staffId == request.auth.uid) || // Staff can read their own
-        (isManagerOrOwner() && belongsToOrganization(resource.data.organizationId)) // Managers/Owners can read all
-      );
-      allow write: if isOwner() && belongsToOrganization(resource.data.organizationId); // Only owners can write
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow write: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
     }
 
     // Invoices
     match /invoices/{invoiceId} {
       allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
-      allow create: if isManagerOrOwner() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isManagerOrOwner() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
     }
 
     // Documents
     match /documents/{documentId} {
       allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
-      allow create: if isManagerOrOwner() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isManagerOrOwner() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
     }
 
     // Announcements
     match /announcements/{announcementId} {
       allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
-      allow create: if isManagerOrOwner() && belongsToOrganization(request.resource.data.organizationId);
-      allow update, delete: if isManagerOrOwner() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
     }
   }
 }
