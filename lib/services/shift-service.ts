@@ -256,6 +256,7 @@ export async function generateRecurringShifts(
             workTemplateId,
             escalationPolicyId: workTemplate.escalationPolicyId || "",
             status: "scheduled",
+            requiresRollCall: workTemplate.requiresRollCall || false,
             driverAssignment: workTemplate.defaultDriverAssignment || null,
           });
         }
@@ -306,6 +307,7 @@ export async function generateRecurringShifts(
           workTemplateId: workTemplate.id,
           escalationPolicyId: workTemplate.escalationPolicyId || "",
           status: "scheduled",
+          requiresRollCall: workTemplate.requiresRollCall || false,
           driverAssignment: workTemplate.defaultDriverAssignment || null,
         });
       }

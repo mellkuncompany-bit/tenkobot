@@ -127,6 +127,7 @@ export interface WorkTemplate {
 
   // New fields
   reportCheckTime: string | null; // 作業報告確認時刻 (HH:mm format)
+  requiresRollCall: boolean; // 点呼確認対象にするかどうか
   recurringSchedule: RecurringSchedule | null;
   unitPrice: number; // Unit price for invoicing
   defaultDriverAssignment: DriverAssignment | null; // Default driver assignment
@@ -152,6 +153,7 @@ export interface Shift {
   workTemplateId: string;
   escalationPolicyId: string; // Escalation policy per shift
   status: ShiftStatus;
+  requiresRollCall: boolean; // 点呼確認対象にするかどうか（作業開始時刻=点呼時刻）
   driverAssignment: DriverAssignment | null; // Driver assignment for this shift
   createdAt: Timestamp;
   updatedAt: Timestamp;

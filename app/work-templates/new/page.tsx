@@ -31,6 +31,7 @@ export default function NewWorkTemplatePage() {
     description: "",
     notes: "",
     reportCheckTime: "",
+    requiresRollCall: false, // 点呼確認対象
     workDate: "", // 作業日（何月何日）
 
     // Recurring schedule
@@ -104,6 +105,7 @@ export default function NewWorkTemplatePage() {
         description: formData.description,
         notes: formData.notes,
         reportCheckTime: formData.reportCheckTime || null,
+        requiresRollCall: formData.requiresRollCall,
         recurringSchedule,
         unitPrice: 0, // 管理者専用ページで設定
         defaultDriverAssignment,
@@ -210,6 +212,20 @@ export default function NewWorkTemplatePage() {
                 <p className="text-xs text-gray-500">
                   この時刻に作業報告を確認します。未報告の場合はエスカレーション処理が実行されます
                 </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="requiresRollCall"
+                  checked={formData.requiresRollCall}
+                  onChange={(e) =>
+                    setFormData({ ...formData, requiresRollCall: e.target.checked })
+                  }
+                  disabled={loading}
+                />
+                <Label htmlFor="requiresRollCall" className="cursor-pointer">
+                  点呼確認対象にする（作業開始時刻に点呼が必要）
+                </Label>
               </div>
 
               {/* 単価設定は管理者専用ページで設定 */}

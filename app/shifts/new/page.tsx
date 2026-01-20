@@ -50,6 +50,10 @@ export default function NewShiftPage() {
   const [driverPhone, setDriverPhone] = useState("");
   const [drivers, setDrivers] = useState<Staff[]>([]);
 
+  // Roll call state
+  const [overrideRollCall, setOverrideRollCall] = useState(false);
+  const [requiresRollCall, setRequiresRollCall] = useState(false);
+
   useEffect(() => {
     if (!admin) return;
     const fetch = async () => {
@@ -115,9 +119,13 @@ export default function NewShiftPage() {
             setDriverPhone("");
           }
         }
+        // Set roll call default from template
+        if (!overrideRollCall) {
+          setRequiresRollCall(template.requiresRollCall || false);
+        }
       }
     });
-  }, [formData.workTemplateId, overrideDriverAssignment]);
+  }, [formData.workTemplateId, overrideDriverAssignment, overrideRollCall]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,9 +158,15 @@ export default function NewShiftPage() {
         driverAssignment = selectedWorkTemplate?.defaultDriverAssignment || null;
       }
 
+      // Determine requiresRollCall
+      const finalRequiresRollCall = overrideRollCall
+        ? requiresRollCall
+        : (selectedWorkTemplate?.requiresRollCall || false);
+
       await createShift({
         organizationId: admin.organizationId,
         ...formData,
+        requiresRollCall: finalRequiresRollCall,
         driverAssignment,
         status: "scheduled",
       });
@@ -395,6 +409,53 @@ export default function NewShiftPage() {
                         </p>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* Roll Call Settings */}
+              <div className="space-y-4 pt-6 border-t">
+                <div>
+                  <Label className="text-base font-semibold">点呼確認</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedWorkTemplate
+                      ? `テンプレートのデフォルト: ${
+                          selectedWorkTemplate.requiresRollCall ? "点呼確認対象" : "点呼確認不要"
+                        }`
+                      : "テンプレートが選択されていません"}
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="overrideRollCall"
+                    checked={overrideRollCall}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setOverrideRollCall(checked);
+                      if (!checked) {
+                        // Reset to template default
+                        setRequiresRollCall(selectedWorkTemplate?.requiresRollCall || false);
+                      }
+                    }}
+                    disabled={loading}
+                  />
+                  <Label htmlFor="overrideRollCall" className="cursor-pointer">
+                    テンプレートのデフォルトを上書き
+                  </Label>
+                </div>
+
+                {overrideRollCall && (
+                  <div className="flex items-center space-x-2 pl-6">
+                    <Checkbox
+                      id="requiresRollCall"
+                      checked={requiresRollCall}
+                      onChange={(e) => setRequiresRollCall(e.target.checked)}
+                      disabled={loading}
+                    />
+                    <Label htmlFor="requiresRollCall" className="cursor-pointer">
+                      点呼確認対象にする（作業開始時刻に点呼が必要）
+                    </Label>
                   </div>
                 )}
               </div>
