@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { createStaff } from "@/lib/services/staff-service";
+import { createStaff, getStaffs } from "@/lib/services/staff-service";
 import { getWorkTemplates } from "@/lib/services/work-template-service";
-import { StaffRole, PaymentType, WorkTemplate } from "@/lib/types/firestore";
+import { StaffRole, PaymentType, WorkTemplate, Staff } from "@/lib/types/firestore";
 import { ArrowLeft } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
@@ -22,6 +23,7 @@ export default function NewStaffPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [workTemplates, setWorkTemplates] = useState<WorkTemplate[]>([]);
+  const [staffs, setStaffs] = useState<Staff[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     role: "driver" as StaffRole,
@@ -34,9 +36,12 @@ export default function NewStaffPage() {
     licenseNotificationEnabled: true,
     escalationGraceMinutes: 5,
 
-    // Escalation notification methods
+    // Escalation staff and notification methods
+    escalation1stStaffId: "",
     escalation1stMethod: "sms" as "sms" | "call",
+    escalation2ndStaffId: "",
     escalation2ndMethod: "sms" as "sms" | "call",
+    escalation3rdStaffId: "",
     escalation3rdMethod: "call" as "sms" | "call",
 
     // Assigned work templates
@@ -60,16 +65,20 @@ export default function NewStaffPage() {
   useEffect(() => {
     if (!admin) return;
 
-    const fetchWorkTemplates = async () => {
+    const fetchData = async () => {
       try {
-        const templates = await getWorkTemplates(admin.organizationId);
+        const [templates, staffList] = await Promise.all([
+          getWorkTemplates(admin.organizationId),
+          getStaffs(admin.organizationId),
+        ]);
         setWorkTemplates(templates);
+        setStaffs(staffList);
       } catch (error) {
-        console.error("Error fetching work templates:", error);
+        console.error("Error fetching data:", error);
       }
     };
 
-    fetchWorkTemplates();
+    fetchData();
   }, [admin]);
 
   const handleChange = (
@@ -485,59 +494,158 @@ export default function NewStaffPage() {
                   </p>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="escalation1stMethod">1人目の通知方法</Label>
+                <div className="space-y-6">
+                  {/* 1人目 */}
+                  <div className="space-y-3">
+                    <Label htmlFor="escalation1stStaff">1人目の担当者</Label>
                     <Select
-                      id="escalation1stMethod"
-                      value={formData.escalation1stMethod}
+                      id="escalation1stStaff"
+                      value={formData.escalation1stStaffId}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          escalation1stMethod: e.target.value as "sms" | "call",
+                          escalation1stStaffId: e.target.value,
                         })
                       }
                       disabled={loading}
                     >
-                      <option value="sms">SMS</option>
-                      <option value="call">電話</option>
+                      <option value="">選択してください</option>
+                      {staffs
+                        .filter((s) => s.role === "manager" || s.role === "owner")
+                        .map((staff) => (
+                          <option key={staff.id} value={staff.id}>
+                            {staff.name} ({staff.role === "manager" ? "管理者" : "経営者"})
+                          </option>
+                        ))}
                     </Select>
+                    <div className="ml-2">
+                      <RadioGroup
+                        value={formData.escalation1stMethod}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            escalation1stMethod: value as "sms" | "call",
+                          })
+                        }
+                        disabled={loading}
+                        className="flex space-x-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="sms" id="escalation1st-sms" />
+                          <Label htmlFor="escalation1st-sms" className="cursor-pointer font-normal">
+                            SMS
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="call" id="escalation1st-call" />
+                          <Label htmlFor="escalation1st-call" className="cursor-pointer font-normal">
+                            電話
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="escalation2ndMethod">2人目の通知方法</Label>
+                  {/* 2人目 */}
+                  <div className="space-y-3">
+                    <Label htmlFor="escalation2ndStaff">2人目の担当者</Label>
                     <Select
-                      id="escalation2ndMethod"
-                      value={formData.escalation2ndMethod}
+                      id="escalation2ndStaff"
+                      value={formData.escalation2ndStaffId}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          escalation2ndMethod: e.target.value as "sms" | "call",
+                          escalation2ndStaffId: e.target.value,
                         })
                       }
                       disabled={loading}
                     >
-                      <option value="sms">SMS</option>
-                      <option value="call">電話</option>
+                      <option value="">選択してください</option>
+                      {staffs
+                        .filter((s) => s.role === "manager" || s.role === "owner")
+                        .map((staff) => (
+                          <option key={staff.id} value={staff.id}>
+                            {staff.name} ({staff.role === "manager" ? "管理者" : "経営者"})
+                          </option>
+                        ))}
                     </Select>
+                    <div className="ml-2">
+                      <RadioGroup
+                        value={formData.escalation2ndMethod}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            escalation2ndMethod: value as "sms" | "call",
+                          })
+                        }
+                        disabled={loading}
+                        className="flex space-x-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="sms" id="escalation2nd-sms" />
+                          <Label htmlFor="escalation2nd-sms" className="cursor-pointer font-normal">
+                            SMS
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="call" id="escalation2nd-call" />
+                          <Label htmlFor="escalation2nd-call" className="cursor-pointer font-normal">
+                            電話
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="escalation3rdMethod">3人目の通知方法</Label>
+                  {/* 3人目 */}
+                  <div className="space-y-3">
+                    <Label htmlFor="escalation3rdStaff">3人目の担当者</Label>
                     <Select
-                      id="escalation3rdMethod"
-                      value={formData.escalation3rdMethod}
+                      id="escalation3rdStaff"
+                      value={formData.escalation3rdStaffId}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          escalation3rdMethod: e.target.value as "sms" | "call",
+                          escalation3rdStaffId: e.target.value,
                         })
                       }
                       disabled={loading}
                     >
-                      <option value="sms">SMS</option>
-                      <option value="call">電話</option>
+                      <option value="">選択してください</option>
+                      {staffs
+                        .filter((s) => s.role === "manager" || s.role === "owner")
+                        .map((staff) => (
+                          <option key={staff.id} value={staff.id}>
+                            {staff.name} ({staff.role === "manager" ? "管理者" : "経営者"})
+                          </option>
+                        ))}
                     </Select>
+                    <div className="ml-2">
+                      <RadioGroup
+                        value={formData.escalation3rdMethod}
+                        onValueChange={(value) =>
+                          setFormData({
+                            ...formData,
+                            escalation3rdMethod: value as "sms" | "call",
+                          })
+                        }
+                        disabled={loading}
+                        className="flex space-x-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="sms" id="escalation3rd-sms" />
+                          <Label htmlFor="escalation3rd-sms" className="cursor-pointer font-normal">
+                            SMS
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="call" id="escalation3rd-call" />
+                          <Label htmlFor="escalation3rd-call" className="cursor-pointer font-normal">
+                            電話
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
                   </div>
                 </div>
               </div>
