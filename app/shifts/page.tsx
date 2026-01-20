@@ -9,7 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { getShifts } from "@/lib/services/shift-service";
-import { Shift } from "@/lib/types/firestore";
+import { getStaffs } from "@/lib/services/staff-service";
+import {
+  getDriverDisplayName,
+  getDriverAssignmentBadgeVariant,
+} from "@/lib/services/driver-assignment-service";
+import { Shift, Staff } from "@/lib/types/firestore";
 import { Plus, Pencil, Calendar } from "lucide-react";
 import { formatDateDisplay } from "@/lib/utils/date";
 
@@ -17,14 +22,19 @@ export default function ShiftsPage() {
   const { admin } = useAuth();
   const router = useRouter();
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [staffs, setStaffs] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!admin) return;
     const fetch = async () => {
       try {
-        const data = await getShifts(admin.organizationId);
-        setShifts(data.slice(0, 50)); // 最新50件
+        const [shiftsData, staffsData] = await Promise.all([
+          getShifts(admin.organizationId),
+          getStaffs(admin.organizationId),
+        ]);
+        setShifts(shiftsData.slice(0, 50)); // 最新50件
+        setStaffs(staffsData);
       } catch (error) {
         console.error("Error:", error);
       } finally {
@@ -76,7 +86,8 @@ export default function ShiftsPage() {
                   <TableRow>
                     <TableHead>日付</TableHead>
                     <TableHead>時間</TableHead>
-                    <TableHead>担当者</TableHead>
+                    <TableHead>担当スタッフ</TableHead>
+                    <TableHead>担当ドライバー</TableHead>
                     <TableHead>ステータス</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
@@ -89,6 +100,11 @@ export default function ShiftsPage() {
                         {shift.startTime} 〜 {shift.endTime || "未定"}
                       </TableCell>
                       <TableCell>{shift.staffIds.length}名</TableCell>
+                      <TableCell>
+                        <Badge variant={getDriverAssignmentBadgeVariant(shift.driverAssignment)}>
+                          {getDriverDisplayName(shift.driverAssignment, staffs)}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant={

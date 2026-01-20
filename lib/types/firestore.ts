@@ -49,7 +49,15 @@ export interface Admin {
 // ========================================
 // Staff
 // ========================================
-export type StaffRole = "general" | "leader" | "assistant";
+export type StaffRole = "driver" | "manager" | "owner";
+export type PaymentType = "hourly" | "daily" | "monthly";
+
+export interface RecurringSchedule {
+  daysOfWeek: number[]; // 0=Sunday, 1=Monday...6=Saturday
+  excludeHolidays: boolean;
+  startDate: string | null; // YYYY-MM-DD
+  endDate: string | null; // YYYY-MM-DD
+}
 
 export interface Staff {
   id: string;
@@ -60,8 +68,37 @@ export interface Staff {
   phoneNumber: string;
   isEscalationTarget: boolean;
   isActive: boolean;
+
+  // License and notification settings
+  licenseExpiryDate: Timestamp | null;
+  licenseNotificationEnabled: boolean;
+  assignedWorkTemplateIds: string[];
+  escalationGraceMinutes: number;
+
+  // Payment settings
+  paymentType: PaymentType;
+  hourlyRate: number | null;
+  dailyRate: number | null;
+  monthlyRate: number | null;
+  overtimeRate: number | null;
+
+  // Recurring schedule
+  recurringSchedule: RecurringSchedule | null;
+
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+// ========================================
+// Driver Assignment
+// ========================================
+export type DriverAssignmentType = "staff" | "unassigned" | "freetext";
+
+export interface DriverAssignment {
+  type: DriverAssignmentType;
+  staffId: string | null;        // type="staff"の場合に使用
+  freetextName: string | null;   // type="freetext"の場合に使用
+  contactPhone: string | null;   // Phase 2の自動架電用（任意）
 }
 
 // ========================================
@@ -74,6 +111,13 @@ export interface WorkTemplate {
   description: string;
   notes: string;
   estimatedDuration: number; // minutes
+
+  // New fields
+  expectedDurationMinutes: number; // Expected duration for overtime checking
+  recurringSchedule: RecurringSchedule | null;
+  unitPrice: number; // Unit price for invoicing
+  defaultDriverAssignment: DriverAssignment | null; // Default driver assignment
+
   isActive: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -94,6 +138,7 @@ export interface Shift {
   workTemplateId: string;
   escalationPolicyId: string; // Escalation policy per shift
   status: ShiftStatus;
+  driverAssignment: DriverAssignment | null; // Driver assignment for this shift
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -114,6 +159,13 @@ export interface AttendanceRecord {
   clockOutTime: Timestamp | null;
   status: AttendanceStatus;
   escalationStatus: EscalationStatus;
+
+  // New fields for time tracking
+  workHours: number; // Total work hours in minutes
+  breakMinutes: number; // Break time in minutes
+  overtimeMinutes: number; // Overtime in minutes
+  notes: string; // Notes/remarks
+
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -198,6 +250,156 @@ export interface EscalationExecution {
 }
 
 // ========================================
+// Vehicle
+// ========================================
+export interface Vehicle {
+  id: string;
+  organizationId: string;
+  name: string;
+  licensePlate: string;
+  inspectionDate: Timestamp; // Vehicle inspection expiry date
+  inspectionNotificationEnabled: boolean;
+  isActive: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ========================================
+// Fuel Receipt
+// ========================================
+export interface FuelReceipt {
+  id: string;
+  organizationId: string;
+  vehicleId: string;
+  staffId: string;
+  date: string; // YYYY-MM-DD
+  amount: number; // Amount in yen
+  liters: number; // Fuel amount in liters
+  odometerReading: number | null; // Odometer reading in km
+
+  // OCR information
+  receiptImageUrl: string; // Cloud Storage path
+  ocrData: any | null; // OCR result data
+
+  // Verification status
+  isVerified: boolean; // Manual verification flag
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ========================================
+// Payroll Record
+// ========================================
+export type PayrollStatus = "draft" | "confirmed" | "paid";
+
+export interface PayrollRecord {
+  id: string;
+  organizationId: string;
+  staffId: string;
+  year: number;
+  month: number; // 1-12
+
+  // Auto-calculated items
+  workDays: number;
+  totalWorkMinutes: number;
+  regularMinutes: number;
+  overtimeMinutes: number;
+
+  // Payment amounts
+  basePayment: number; // Base payment
+  overtimePayment: number; // Overtime payment
+  allowances: number; // Allowances
+  deductions: number; // Deductions
+  totalPayment: number; // Total payment
+
+  // Status
+  status: PayrollStatus;
+  notes: string;
+  isManuallyAdjusted: boolean;
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ========================================
+// Invoice
+// ========================================
+export type InvoiceStatus = "draft" | "sent" | "paid";
+
+export interface InvoiceItem {
+  workTemplateName: string;
+  quantity: number; // Number of times work was performed
+  unitPrice: number;
+  amount: number;
+}
+
+export interface Invoice {
+  id: string;
+  organizationId: string;
+  invoiceNumber: string;
+  year: number;
+  month: number;
+
+  clientName: string;
+  clientAddress: string;
+
+  items: InvoiceItem[];
+
+  subtotal: number;
+  tax: number;
+  total: number;
+
+  status: InvoiceStatus;
+  dueDate: string; // YYYY-MM-DD
+  paidDate: string | null;
+
+  notes: string;
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ========================================
+// Document (Work Manuals)
+// ========================================
+export type DocumentCategory = "manual" | "policy" | "other";
+
+export interface Document {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string;
+  fileUrl: string; // Cloud Storage path
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  category: DocumentCategory;
+  isActive: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ========================================
+// Announcement
+// ========================================
+export type AnnouncementPriority = "low" | "medium" | "high";
+
+export interface Announcement {
+  id: string;
+  organizationId: string;
+  title: string;
+  content: string;
+  priority: AnnouncementPriority;
+  publishDate: Timestamp;
+  expiryDate: Timestamp | null;
+  targetStaffIds: string[]; // Empty array = all staff
+  isActive: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ========================================
 // Utility Types for Creation
 // ========================================
 export type CreateOrganization = Omit<Organization, "id" | "createdAt" | "updatedAt">;
@@ -209,3 +411,9 @@ export type CreateAttendanceRecord = Omit<AttendanceRecord, "id" | "createdAt" |
 export type CreateEscalationPolicy = Omit<EscalationPolicy, "id" | "createdAt" | "updatedAt">;
 export type CreateNotificationLog = Omit<NotificationLog, "id" | "createdAt">;
 export type CreateEscalationExecution = Omit<EscalationExecution, "id" | "createdAt" | "updatedAt">;
+export type CreateVehicle = Omit<Vehicle, "id" | "createdAt" | "updatedAt">;
+export type CreateFuelReceipt = Omit<FuelReceipt, "id" | "createdAt" | "updatedAt">;
+export type CreatePayrollRecord = Omit<PayrollRecord, "id" | "createdAt" | "updatedAt">;
+export type CreateInvoice = Omit<Invoice, "id" | "createdAt" | "updatedAt">;
+export type CreateDocument = Omit<Document, "id" | "createdAt" | "updatedAt">;
+export type CreateAnnouncement = Omit<Announcement, "id" | "createdAt" | "updatedAt">;

@@ -6,13 +6,29 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select as ShadcnSelect,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createShift } from "@/lib/services/shift-service";
-import { getStaffs } from "@/lib/services/staff-service";
-import { getWorkTemplates } from "@/lib/services/work-template-service";
+import { getStaffs, getStaffsByRole } from "@/lib/services/staff-service";
+import { getWorkTemplates, getWorkTemplate } from "@/lib/services/work-template-service";
 import { getEscalationPolicies } from "@/lib/services/escalation-policy-service";
+import {
+  createStaffDriverAssignment,
+  createUnassignedDriverAssignment,
+  createFreetextDriverAssignment,
+  getDriverDisplayName,
+} from "@/lib/services/driver-assignment-service";
+import { Staff, DriverAssignmentType, WorkTemplate } from "@/lib/types/firestore";
 import { ArrowLeft } from "lucide-react";
 
 export default function NewShiftPage() {
@@ -31,35 +47,120 @@ export default function NewShiftPage() {
     escalationPolicyId: "",
   });
 
+  // Driver assignment state
+  const [selectedWorkTemplate, setSelectedWorkTemplate] = useState<WorkTemplate | null>(null);
+  const [overrideDriverAssignment, setOverrideDriverAssignment] = useState(false);
+  const [driverAssignmentType, setDriverAssignmentType] =
+    useState<DriverAssignmentType>("unassigned");
+  const [selectedDriverId, setSelectedDriverId] = useState("");
+  const [freetextDriverName, setFreetextDriverName] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
+  const [drivers, setDrivers] = useState<Staff[]>([]);
+
   useEffect(() => {
     if (!admin) return;
     const fetch = async () => {
-      const [s, t, p] = await Promise.all([
+      const [s, t, p, d] = await Promise.all([
         getStaffs(admin.organizationId),
         getWorkTemplates(admin.organizationId),
         getEscalationPolicies(admin.organizationId),
+        getStaffsByRole(admin.organizationId, "driver"),
       ]);
       setStaffs(s);
       setTemplates(t);
       setPolicies(p);
+      setDrivers(d);
       if (p.length > 0) {
         setFormData((prev) => ({ ...prev, escalationPolicyId: p[0].id }));
       }
       if (t.length > 0) {
         setFormData((prev) => ({ ...prev, workTemplateId: t[0].id }));
+        // Load default driver assignment from first template
+        const firstTemplate = t[0];
+        setSelectedWorkTemplate(firstTemplate);
+        if (firstTemplate.defaultDriverAssignment) {
+          const da = firstTemplate.defaultDriverAssignment;
+          setDriverAssignmentType(da.type);
+          if (da.type === "staff" && da.staffId) {
+            setSelectedDriverId(da.staffId);
+          }
+          if (da.type === "freetext" && da.freetextName) {
+            setFreetextDriverName(da.freetextName);
+          }
+          if (da.contactPhone) {
+            setDriverPhone(da.contactPhone);
+          }
+        }
       }
     };
     fetch();
   }, [admin]);
+
+  // Load template when workTemplateId changes
+  useEffect(() => {
+    if (!formData.workTemplateId) return;
+    getWorkTemplate(formData.workTemplateId).then((template) => {
+      if (template) {
+        setSelectedWorkTemplate(template);
+        // Reset driver assignment if not overriding
+        if (!overrideDriverAssignment && template.defaultDriverAssignment) {
+          const da = template.defaultDriverAssignment;
+          setDriverAssignmentType(da.type);
+          if (da.type === "staff" && da.staffId) {
+            setSelectedDriverId(da.staffId);
+          } else {
+            setSelectedDriverId("");
+          }
+          if (da.type === "freetext" && da.freetextName) {
+            setFreetextDriverName(da.freetextName);
+          } else {
+            setFreetextDriverName("");
+          }
+          if (da.contactPhone) {
+            setDriverPhone(da.contactPhone);
+          } else {
+            setDriverPhone("");
+          }
+        }
+      }
+    });
+  }, [formData.workTemplateId, overrideDriverAssignment]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!admin) return;
     setLoading(true);
     try {
+      // Build driver assignment
+      let driverAssignment = null;
+      if (overrideDriverAssignment) {
+        // Use custom driver assignment
+        if (driverAssignmentType === "staff") {
+          if (selectedDriverId) {
+            driverAssignment = createStaffDriverAssignment(
+              selectedDriverId,
+              driverPhone || undefined
+            );
+          }
+        } else if (driverAssignmentType === "freetext") {
+          if (freetextDriverName) {
+            driverAssignment = createFreetextDriverAssignment(
+              freetextDriverName,
+              driverPhone || undefined
+            );
+          }
+        } else {
+          driverAssignment = createUnassignedDriverAssignment();
+        }
+      } else {
+        // Use template's default driver assignment
+        driverAssignment = selectedWorkTemplate?.defaultDriverAssignment || null;
+      }
+
       await createShift({
         organizationId: admin.organizationId,
         ...formData,
+        driverAssignment,
         status: "scheduled",
       });
       router.push("/shifts");
@@ -170,6 +271,141 @@ export default function NewShiftPage() {
                     </option>
                   ))}
                 </Select>
+              </div>
+
+              {/* Driver Assignment */}
+              <div className="space-y-4 pt-4 border-t">
+                <div>
+                  <Label className="text-base font-semibold">担当ドライバー</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedWorkTemplate?.defaultDriverAssignment
+                      ? `テンプレートのデフォルト: ${getDriverDisplayName(
+                          selectedWorkTemplate.defaultDriverAssignment,
+                          drivers
+                        )}`
+                      : "テンプレートにデフォルトが設定されていません"}
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="overrideDriverAssignment"
+                    checked={overrideDriverAssignment}
+                    onCheckedChange={(checked) => {
+                      setOverrideDriverAssignment(checked as boolean);
+                      if (!checked) {
+                        // Reset to template default
+                        const da = selectedWorkTemplate?.defaultDriverAssignment;
+                        if (da) {
+                          setDriverAssignmentType(da.type);
+                          if (da.type === "staff" && da.staffId) {
+                            setSelectedDriverId(da.staffId);
+                          } else {
+                            setSelectedDriverId("");
+                          }
+                          if (da.type === "freetext" && da.freetextName) {
+                            setFreetextDriverName(da.freetextName);
+                          } else {
+                            setFreetextDriverName("");
+                          }
+                          if (da.contactPhone) {
+                            setDriverPhone(da.contactPhone);
+                          } else {
+                            setDriverPhone("");
+                          }
+                        }
+                      }
+                    }}
+                    disabled={loading}
+                  />
+                  <Label htmlFor="overrideDriverAssignment" className="cursor-pointer">
+                    テンプレートのデフォルトを上書き
+                  </Label>
+                </div>
+
+                {overrideDriverAssignment && (
+                  <div className="space-y-4 pl-6">
+                    <RadioGroup
+                      value={driverAssignmentType}
+                      onValueChange={(value) =>
+                        setDriverAssignmentType(value as DriverAssignmentType)
+                      }
+                      disabled={loading}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="staff" id="driver-staff" />
+                        <Label htmlFor="driver-staff" className="cursor-pointer">
+                          スタッフから選択
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="unassigned" id="driver-unassigned" />
+                        <Label htmlFor="driver-unassigned" className="cursor-pointer">
+                          未定
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="freetext" id="driver-freetext" />
+                        <Label htmlFor="driver-freetext" className="cursor-pointer">
+                          自由記入
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {driverAssignmentType === "staff" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="driverId">ドライバー選択</Label>
+                        <ShadcnSelect
+                          value={selectedDriverId}
+                          onValueChange={setSelectedDriverId}
+                          disabled={loading}
+                        >
+                          <SelectTrigger id="driverId">
+                            <SelectValue placeholder="ドライバーを選択してください" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {drivers.map((driver) => (
+                              <SelectItem key={driver.id} value={driver.id}>
+                                {driver.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </ShadcnSelect>
+                      </div>
+                    )}
+
+                    {driverAssignmentType === "freetext" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="freetextName">担当者名</Label>
+                        <Input
+                          id="freetextName"
+                          placeholder="担当者名を入力"
+                          value={freetextDriverName}
+                          onChange={(e) => setFreetextDriverName(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    )}
+
+                    {(driverAssignmentType === "staff" ||
+                      driverAssignmentType === "freetext") && (
+                      <div className="space-y-2">
+                        <Label htmlFor="driverPhone">連絡先電話番号（任意）</Label>
+                        <Input
+                          id="driverPhone"
+                          type="tel"
+                          placeholder="090-1234-5678"
+                          value={driverPhone}
+                          onChange={(e) => setDriverPhone(e.target.value)}
+                          disabled={loading}
+                        />
+                        <p className="text-xs text-gray-500">
+                          将来の自動架電機能で使用されます
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex space-x-4 pt-4">

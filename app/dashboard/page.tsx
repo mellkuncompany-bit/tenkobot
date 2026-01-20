@@ -1,21 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { COLLECTIONS } from "@/lib/firebase/collections";
-import { Shift, AttendanceRecord, NotificationLog } from "@/lib/types/firestore";
+import { Shift, AttendanceRecord, NotificationLog, Staff, WorkTemplate } from "@/lib/types/firestore";
 import { formatDateKey, formatDateTimeDisplay } from "@/lib/utils/date";
+import { getUnassignedShifts } from "@/lib/services/shift-service";
+import { getStaffs } from "@/lib/services/staff-service";
+import { getWorkTemplate } from "@/lib/services/work-template-service";
+import { getDriverDisplayName } from "@/lib/services/driver-assignment-service";
 import { Users, Calendar, AlertCircle, CheckCircle } from "lucide-react";
 
 export default function DashboardPage() {
   const { admin } = useAuth();
+  const router = useRouter();
   const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [recentLogs, setRecentLogs] = useState<NotificationLog[]>([]);
+  const [unassignedShifts, setUnassignedShifts] = useState<Shift[]>([]);
+  const [staffs, setStaffs] = useState<Staff[]>([]);
+  const [workTemplates, setWorkTemplates] = useState<Record<string, WorkTemplate>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,6 +34,13 @@ export default function DashboardPage() {
     const fetchDashboardData = async () => {
       try {
         const today = formatDateKey(new Date());
+        const nextWeek = formatDateKey(
+          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        );
+
+        // Fetch staffs
+        const staffsData = await getStaffs(admin.organizationId);
+        setStaffs(staffsData);
 
         // Fetch today's shifts
         const shiftsQuery = query(
@@ -64,6 +81,23 @@ export default function DashboardPage() {
           ...doc.data(),
         })) as NotificationLog[];
         setRecentLogs(logs);
+
+        // Fetch unassigned shifts (next 7 days)
+        const unassigned = await getUnassignedShifts(admin.organizationId, today, nextWeek);
+        setUnassignedShifts(unassigned);
+
+        // Fetch work templates for unassigned shifts
+        const templateIds = [...new Set(unassigned.map((s) => s.workTemplateId))];
+        const templates: Record<string, WorkTemplate> = {};
+        await Promise.all(
+          templateIds.map(async (id) => {
+            const template = await getWorkTemplate(id);
+            if (template) {
+              templates[id] = template;
+            }
+          })
+        );
+        setWorkTemplates(templates);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -97,7 +131,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">本日のシフト</CardTitle>
@@ -135,6 +169,17 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">{escalatingCount}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">未定作業</CardTitle>
+              <AlertCircle className="h-4 w-4 text-yellow-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{unassignedShifts.length}</div>
+              <p className="text-xs text-muted-foreground">今後7日間</p>
             </CardContent>
           </Card>
         </div>
@@ -182,6 +227,49 @@ export default function DashboardPage() {
                           </span>
                         )}
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Unassigned Shifts */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-yellow-600" />
+              未定作業一覧
+            </CardTitle>
+            <CardDescription>
+              担当ドライバーが未定の作業（今後7日間）
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {unassignedShifts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">未定の作業はありません</p>
+            ) : (
+              <div className="space-y-3">
+                {unassignedShifts.map((shift) => {
+                  const template = workTemplates[shift.workTemplateId];
+                  return (
+                    <div
+                      key={shift.id}
+                      className="flex items-center justify-between border-b pb-3 last:border-b-0 last:pb-0"
+                    >
+                      <div>
+                        <p className="font-medium">{template?.name || "不明な作業"}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {shift.date} {shift.startTime}～{shift.endTime || "未定"}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => router.push(`/shifts/${shift.id}`)}
+                      >
+                        担当者を割り当て
+                      </Button>
                     </div>
                   );
                 })}

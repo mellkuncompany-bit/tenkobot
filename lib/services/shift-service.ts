@@ -62,3 +62,80 @@ export async function updateShift(
     updatedAt: serverTimestamp(),
   });
 }
+
+/**
+ * Get today's shifts for an organization
+ */
+export async function getTodayShifts(organizationId: string): Promise<Shift[]> {
+  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+
+  const q = query(
+    collection(db, COLLECTIONS.SHIFTS),
+    where("organizationId", "==", organizationId),
+    where("date", "==", today)
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Shift[];
+}
+
+/**
+ * Get shifts by date range
+ */
+export async function getShiftsByDateRange(
+  organizationId: string,
+  startDate: string,
+  endDate: string
+): Promise<Shift[]> {
+  const q = query(
+    collection(db, COLLECTIONS.SHIFTS),
+    where("organizationId", "==", organizationId),
+    where("date", ">=", startDate),
+    where("date", "<=", endDate),
+    orderBy("date", "asc")
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Shift[];
+}
+
+/**
+ * Get unassigned shifts (driver not assigned)
+ */
+export async function getUnassignedShifts(
+  organizationId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<Shift[]> {
+  // Build query with date range if provided
+  const constraints = [where("organizationId", "==", organizationId)];
+
+  if (startDate && endDate) {
+    constraints.push(where("date", ">=", startDate));
+    constraints.push(where("date", "<=", endDate));
+    constraints.push(orderBy("date", "asc"));
+  } else {
+    constraints.push(orderBy("date", "asc"));
+  }
+
+  const q = query(collection(db, COLLECTIONS.SHIFTS), ...constraints);
+
+  const snapshot = await getDocs(q);
+  const shifts = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  })) as Shift[];
+
+  // Filter for unassigned drivers on the client side
+  // (driverAssignment is null OR driverAssignment.type === "unassigned")
+  return shifts.filter((shift) => {
+    if (!shift.driverAssignment) return true;
+    return shift.driverAssignment.type === "unassigned";
+  });
+}
