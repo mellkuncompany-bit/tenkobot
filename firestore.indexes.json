@@ -38,13 +38,6 @@
       "collectionGroup": "staffs",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "lineUserId", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "staffs",
-      "queryScope": "COLLECTION",
-      "fields": [
         { "fieldPath": "organizationId", "order": "ASCENDING" },
         { "fieldPath": "isActive", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
