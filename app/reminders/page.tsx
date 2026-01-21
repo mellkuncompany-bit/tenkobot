@@ -17,10 +17,12 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { getDriversWithExpiringLicense } from "@/lib/services/staff-service";
 import { getVehiclesWithExpiringInspection } from "@/lib/services/vehicle-service";
 import { Staff, Vehicle } from "@/lib/types/firestore";
-import { AlertTriangle, Bell, CheckCircle } from "lucide-react";
+import { AlertTriangle, Bell, CheckCircle, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function RemindersPage() {
   const { admin } = useAuth();
+  const router = useRouter();
   const [expiringLicenses, setExpiringLicenses] = useState<Staff[]>([]);
   const [expiringInspections, setExpiringInspections] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,9 +105,15 @@ export default function RemindersPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">リマインダー</h1>
-          <p className="text-gray-600 mt-1">免許と車検の期限を管理します</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">リマインダー</h1>
+            <p className="text-gray-600 mt-1">免許と車検の期限を管理します</p>
+          </div>
+          <Button onClick={() => router.push("/reminders/custom")}>
+            <Plus className="h-4 w-4 mr-2" />
+            カスタムリマインダー
+          </Button>
         </div>
 
         {totalReminders === 0 ? (

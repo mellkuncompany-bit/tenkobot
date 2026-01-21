@@ -9,10 +9,11 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { COLLECTIONS } from "@/lib/firebase/collections";
-import { Shift, AttendanceRecord, NotificationLog, Staff, WorkTemplate } from "@/lib/types/firestore";
+import { Shift, AttendanceRecord, NotificationLog, Staff, WorkTemplate, Reminder } from "@/lib/types/firestore";
 import { formatDateKey, formatDateTimeDisplay } from "@/lib/utils/date";
 import { getStaffs } from "@/lib/services/staff-service";
-import { Users, Calendar, AlertCircle, CheckCircle } from "lucide-react";
+import { getUpcomingReminders, completeReminder } from "@/lib/services/reminder-service";
+import { Users, Calendar, AlertCircle, CheckCircle, Bell } from "lucide-react";
 
 export default function DashboardPage() {
   const { admin } = useAuth();
@@ -20,6 +21,7 @@ export default function DashboardPage() {
   const [todayShifts, setTodayShifts] = useState<Shift[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [recentLogs, setRecentLogs] = useState<NotificationLog[]>([]);
+  const [upcomingReminders, setUpcomingReminders] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -81,6 +83,10 @@ export default function DashboardPage() {
           ...doc.data(),
         })) as NotificationLog[];
         setRecentLogs(logs);
+
+        // Fetch upcoming reminders (next 7 days)
+        const reminders = await getUpcomingReminders(admin.organizationId);
+        setUpcomingReminders(reminders);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -156,6 +162,75 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Upcoming Reminders */}
+        {upcomingReminders.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-orange-600" />
+                今週のリマインダー
+              </CardTitle>
+              <CardDescription>
+                1週間以内に期限が来るリマインダー
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {upcomingReminders.map((reminder) => {
+                  const dueDate = new Date(reminder.dueDate);
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const diffTime = dueDate.getTime() - today.getTime();
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                  return (
+                    <div
+                      key={reminder.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="font-medium">{reminder.title}</p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(reminder.dueDate).toLocaleDateString("ja-JP")} -
+                          {diffDays < 0 ? (
+                            <span className="text-red-600 font-bold ml-1">
+                              {Math.abs(diffDays)}日超過
+                            </span>
+                          ) : diffDays === 0 ? (
+                            <span className="text-red-600 font-bold ml-1">今日</span>
+                          ) : (
+                            <span className={diffDays <= 3 ? "text-orange-600 font-bold ml-1" : "ml-1"}>
+                              あと{diffDays}日
+                            </span>
+                          )}
+                        </p>
+                        {reminder.description && (
+                          <p className="text-xs text-gray-400 mt-1">{reminder.description}</p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            await completeReminder(reminder.id);
+                            setUpcomingReminders(upcomingReminders.filter(r => r.id !== reminder.id));
+                          } catch (error) {
+                            console.error("Error completing reminder:", error);
+                          }
+                        }}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        完了
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Week's Shifts */}
         <Card>

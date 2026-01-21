@@ -104,6 +104,23 @@ export interface Staff {
 }
 
 // ========================================
+// Reminder
+// ========================================
+export interface Reminder {
+  id: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  dueDate: string; // YYYY-MM-DD format
+  isCompleted: boolean;
+  completedAt: Timestamp | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type CreateReminder = Omit<Reminder, "id" | "createdAt" | "updatedAt">;
+
+// ========================================
 // Driver Assignment
 // ========================================
 export type DriverAssignmentType = "staff" | "unassigned" | "freetext";

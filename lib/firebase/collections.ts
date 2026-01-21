@@ -21,6 +21,7 @@ import type {
   Invoice,
   Document,
   Announcement,
+  Reminder,
 } from "@/lib/types/firestore";
 
 // Collection names
@@ -40,6 +41,7 @@ export const COLLECTIONS = {
   INVOICES: "invoices",
   DOCUMENTS: "documents",
   ANNOUNCEMENTS: "announcements",
+  REMINDERS: "reminders",
 } as const;
 
 // Collection references
@@ -133,3 +135,9 @@ export const announcementsCol = () =>
 
 export const announcementDoc = (id: string) =>
   doc(db, COLLECTIONS.ANNOUNCEMENTS, id) as DocumentReference<Announcement>;
+
+export const remindersCol = () =>
+  collection(db, COLLECTIONS.REMINDERS) as CollectionReference<Reminder>;
+
+export const reminderDoc = (id: string) =>
+  doc(db, COLLECTIONS.REMINDERS, id) as DocumentReference<Reminder>;
