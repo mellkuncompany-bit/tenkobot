@@ -14,12 +14,14 @@ import { Select } from "@/components/ui/select";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createWorkTemplate } from "@/lib/services/work-template-service";
 import { getStaffsByRole } from "@/lib/services/staff-service";
+import { generateRecurringShifts } from "@/lib/services/shift-service";
 import {
   createStaffDriverAssignment,
   createUnassignedDriverAssignment,
   createFreetextDriverAssignment,
 } from "@/lib/services/driver-assignment-service";
 import { Staff, DriverAssignmentType } from "@/lib/types/firestore";
+import { formatDateKey } from "@/lib/utils/date";
 import { ArrowLeft } from "lucide-react";
 
 export default function NewWorkTemplatePage() {
@@ -112,6 +114,21 @@ export default function NewWorkTemplatePage() {
         escalationPolicyId: null, // 今後実装
         isActive: true,
       });
+
+      // 繰り返し設定がある場合、自動的にシフトを生成
+      if (recurringSchedule) {
+        const today = formatDateKey(new Date());
+        // 終了日が指定されている場合はその日まで、指定されていない場合は1ヶ月後まで
+        const endDate = recurringSchedule.endDate || formatDateKey(
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        );
+
+        await generateRecurringShifts(
+          admin.organizationId,
+          today,
+          endDate
+        );
+      }
 
       router.push("/staffs");
     } catch (error) {

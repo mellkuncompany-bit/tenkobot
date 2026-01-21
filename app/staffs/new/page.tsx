@@ -13,7 +13,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { createStaff, getStaffs } from "@/lib/services/staff-service";
 import { getWorkTemplates } from "@/lib/services/work-template-service";
+import { generateRecurringShifts } from "@/lib/services/shift-service";
 import { StaffRole, PaymentType, WorkTemplate, Staff } from "@/lib/types/firestore";
+import { formatDateKey } from "@/lib/utils/date";
 import { ArrowLeft } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
@@ -187,6 +189,21 @@ export default function NewStaffPage() {
 
         recurringSchedule,
       });
+
+      // 繰り返し設定がある場合、自動的にシフトを生成
+      if (recurringSchedule) {
+        const today = formatDateKey(new Date());
+        // 終了日が指定されている場合はその日まで、指定されていない場合は1ヶ月後まで
+        const endDate = recurringSchedule.endDate || formatDateKey(
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        );
+
+        await generateRecurringShifts(
+          admin.organizationId,
+          today,
+          endDate
+        );
+      }
 
       router.push("/staffs");
     } catch (err: any) {
