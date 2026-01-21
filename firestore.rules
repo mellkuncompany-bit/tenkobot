@@ -128,5 +128,12 @@ service cloud.firestore {
       allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
       allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
     }
+
+    // Reminders
+    match /reminders/{reminderId} {
+      allow read: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+      allow create: if isAdmin() && belongsToOrganization(request.resource.data.organizationId);
+      allow update, delete: if isAdmin() && belongsToOrganization(resource.data.organizationId);
+    }
   }
 }

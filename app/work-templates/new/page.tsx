@@ -56,20 +56,20 @@ export default function NewWorkTemplatePage() {
   const [showContact3, setShowContact3] = useState(false);
   const [managers, setManagers] = useState<Staff[]>([]);
 
-  // Contact 1
-  const [contact1Type, setContact1Type] = useState<"staff" | "freetext" | null>(null);
+  // Contact 1 (作業テンプレートには"self"オプションは表示しませんが、型定義の互換性のため含めます)
+  const [contact1Type, setContact1Type] = useState<"staff" | "freetext" | "self" | null>(null);
   const [contact1StaffId, setContact1StaffId] = useState("");
   const [contact1Phone, setContact1Phone] = useState("");
   const [contact1Method, setContact1Method] = useState<"sms" | "call">("sms");
 
   // Contact 2
-  const [contact2Type, setContact2Type] = useState<"staff" | "freetext" | null>(null);
+  const [contact2Type, setContact2Type] = useState<"staff" | "freetext" | "self" | null>(null);
   const [contact2StaffId, setContact2StaffId] = useState("");
   const [contact2Phone, setContact2Phone] = useState("");
   const [contact2Method, setContact2Method] = useState<"sms" | "call">("sms");
 
   // Contact 3
-  const [contact3Type, setContact3Type] = useState<"staff" | "freetext" | null>(null);
+  const [contact3Type, setContact3Type] = useState<"staff" | "freetext" | "self" | null>(null);
   const [contact3StaffId, setContact3StaffId] = useState("");
   const [contact3Phone, setContact3Phone] = useState("");
   const [contact3Method, setContact3Method] = useState<"sms" | "call">("sms");
@@ -134,7 +134,7 @@ export default function NewWorkTemplatePage() {
 
       // Build phone notification contacts
       const buildContact = (
-        type: "staff" | "freetext" | null,
+        type: "staff" | "freetext" | "self" | null,
         staffId: string,
         phone: string,
         method: "sms" | "call"
@@ -142,6 +142,7 @@ export default function NewWorkTemplatePage() {
         if (!type) return null;
         if (type === "staff" && !staffId) return null;
         if (type === "freetext" && !phone) return null;
+        // "self" is not applicable for work templates, but included for type compatibility
 
         return {
           type,
@@ -310,27 +311,6 @@ export default function NewWorkTemplatePage() {
                   点呼確認対象にする（作業開始時刻に点呼が必要）
                 </Label>
               </div>
-
-              {/* 単価設定は管理者専用ページで設定 */}
-              {/*
-              <div className="space-y-2">
-                <Label htmlFor="unitPrice">単価（円）</Label>
-                <Input
-                  id="unitPrice"
-                  type="number"
-                  min="0"
-                  placeholder="5000"
-                  value={formData.unitPrice}
-                  onChange={(e) =>
-                    setFormData({ ...formData, unitPrice: Number(e.target.value) })
-                  }
-                  disabled={loading}
-                />
-                <p className="text-xs text-gray-500">
-                  請求書生成時に使用される単価は「管理者専用」ページで設定してください
-                </p>
-              </div>
-              */}
             </CardContent>
           </Card>
 

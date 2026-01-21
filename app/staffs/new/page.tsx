@@ -16,7 +16,7 @@ import { getWorkTemplates } from "@/lib/services/work-template-service";
 import { generateRecurringShifts } from "@/lib/services/shift-service";
 import { StaffRole, PaymentType, WorkTemplate, Staff } from "@/lib/types/firestore";
 import { formatDateKey } from "@/lib/utils/date";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 export default function NewStaffPage() {
@@ -36,15 +36,6 @@ export default function NewStaffPage() {
     // License management
     licenseExpiryDate: "",
     licenseNotificationEnabled: true,
-    escalationGraceMinutes: 5,
-
-    // Escalation staff and notification methods
-    escalation1stStaffId: "",
-    escalation1stMethod: "sms" as "sms" | "call",
-    escalation2ndStaffId: "",
-    escalation2ndMethod: "sms" as "sms" | "call",
-    escalation3rdStaffId: "",
-    escalation3rdMethod: "call" as "sms" | "call",
 
     // Assigned work templates
     workAssignmentType: "unassigned" as "template" | "freetext" | "unassigned",
@@ -59,9 +50,30 @@ export default function NewStaffPage() {
     endDate: "",
 
     // Work hours
-    defaultStartTime: "09:00",
-    defaultEndTime: "17:00",
+    defaultStartTime: "",
+    defaultEndTime: "",
   });
+
+  // Phone notification contacts state
+  const [contact1Type, setContact1Type] = useState<"self" | "staff" | "freetext" | null>(null);
+  const [contact1StaffId, setContact1StaffId] = useState("");
+  const [contact1Phone, setContact1Phone] = useState("");
+  const [contact1Method, setContact1Method] = useState<"sms" | "call">("sms");
+
+  const [showContact2, setShowContact2] = useState(false);
+  const [contact2Type, setContact2Type] = useState<"self" | "staff" | "freetext" | null>(null);
+  const [contact2StaffId, setContact2StaffId] = useState("");
+  const [contact2Phone, setContact2Phone] = useState("");
+  const [contact2Method, setContact2Method] = useState<"sms" | "call">("sms");
+
+  const [showContact3, setShowContact3] = useState(false);
+  const [contact3Type, setContact3Type] = useState<"self" | "staff" | "freetext" | null>(null);
+  const [contact3StaffId, setContact3StaffId] = useState("");
+  const [contact3Phone, setContact3Phone] = useState("");
+  const [contact3Method, setContact3Method] = useState<"sms" | "call">("sms");
+
+  // Phone relay escalation grace time
+  const [escalationGraceMinutes, setEscalationGraceMinutes] = useState(5);
 
   useEffect(() => {
     if (!admin) return;
@@ -141,6 +153,34 @@ export default function NewStaffPage() {
           }
         : null;
 
+      // Build phone notification contacts
+      const phoneNotificationContact1 = contact1Type
+        ? {
+            type: contact1Type,
+            staffId: contact1Type === "staff" ? contact1StaffId : null,
+            phoneNumber: contact1Type === "freetext" ? contact1Phone : null,
+            notificationMethod: contact1Method,
+          }
+        : null;
+
+      const phoneNotificationContact2 = contact2Type
+        ? {
+            type: contact2Type,
+            staffId: contact2Type === "staff" ? contact2StaffId : null,
+            phoneNumber: contact2Type === "freetext" ? contact2Phone : null,
+            notificationMethod: contact2Method,
+          }
+        : null;
+
+      const phoneNotificationContact3 = contact3Type
+        ? {
+            type: contact3Type,
+            staffId: contact3Type === "staff" ? contact3StaffId : null,
+            phoneNumber: contact3Type === "freetext" ? contact3Phone : null,
+            notificationMethod: contact3Method,
+          }
+        : null;
+
       await createStaff({
         organizationId: admin.organizationId,
         name: formData.name,
@@ -154,25 +194,23 @@ export default function NewStaffPage() {
         licenseNotificationEnabled: formData.licenseNotificationEnabled,
         assignedWorkTemplateIds: formData.assignedWorkTemplateIds,
         assignedWorkFreetext: formData.assignedWorkFreetext || null,
-        escalationGraceMinutes: parseInt(formData.escalationGraceMinutes.toString()) || 30,
+        escalationGraceMinutes: parseInt(escalationGraceMinutes.toString()) || 5,
 
-        // Escalation staff settings
-        escalation1stStaffId: formData.escalation1stStaffId || null,
-        escalation1stMethod: formData.escalation1stMethod,
-        escalation2ndStaffId: formData.escalation2ndStaffId || null,
-        escalation2ndMethod: formData.escalation2ndMethod,
-        escalation3rdStaffId: formData.escalation3rdStaffId || null,
-        escalation3rdMethod: formData.escalation3rdMethod,
-
-        paymentType: "hourly",
-        hourlyRate: null,
-        dailyRate: null,
-        monthlyRate: null,
-        overtimeRate: null,
+        // Escalation staff settings (set to null)
+        escalation1stStaffId: null,
+        escalation1stMethod: "sms",
+        escalation2ndStaffId: null,
+        escalation2ndMethod: "sms",
+        escalation3rdStaffId: null,
+        escalation3rdMethod: "call",
 
         recurringSchedule,
         defaultStartTime: formData.defaultStartTime || null,
         defaultEndTime: formData.defaultEndTime || null,
+
+        phoneNotificationContact1,
+        phoneNotificationContact2,
+        phoneNotificationContact3,
       });
 
       // 繰り返し設定がある場合、自動的にシフトを生成
@@ -255,7 +293,7 @@ export default function NewStaffPage() {
                   disabled={loading}
                 >
                   <option value="driver">ドライバー</option>
-                  <option value="manager">管理者</option>
+                  <option value="manager">管理職</option>
                   <option value="owner">経営者</option>
                 </Select>
               </div>
@@ -425,30 +463,45 @@ export default function NewStaffPage() {
                 <p className="text-sm text-muted-foreground">
                   繰り返し設定と組み合わせて、自動的にシフトを生成します
                 </p>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="defaultStartTime">始業時間（点呼確認時間）</Label>
-                    <Input
+                    <select
                       id="defaultStartTime"
                       name="defaultStartTime"
-                      type="time"
                       value={formData.defaultStartTime}
                       onChange={handleChange}
                       disabled={loading}
-                      required
-                    />
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">未設定</option>
+                      {Array.from({ length: 48 }, (_, i) => {
+                        const hours = Math.floor(i / 2).toString().padStart(2, '0');
+                        const minutes = (i % 2 === 0 ? '00' : '30');
+                        const time = `${hours}:${minutes}`;
+                        return <option key={time} value={time}>{time}</option>;
+                      })}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="defaultEndTime">終業時間</Label>
-                    <Input
+                    <select
                       id="defaultEndTime"
                       name="defaultEndTime"
-                      type="time"
                       value={formData.defaultEndTime}
                       onChange={handleChange}
                       disabled={loading}
-                      required
-                    />
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">未設定</option>
+                      {Array.from({ length: 48 }, (_, i) => {
+                        const hours = Math.floor(i / 2).toString().padStart(2, '0');
+                        const minutes = (i % 2 === 0 ? '00' : '30');
+                        const time = `${hours}:${minutes}`;
+                        return <option key={time} value={time}>{time}</option>;
+                      })}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -547,37 +600,24 @@ export default function NewStaffPage() {
 
               <div className="border-t pt-4"></div>
 
-              {/* Escalation Settings */}
+              {/* Phone Relay Settings */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-700">エスカレーション設定</h3>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="isEscalationTarget"
-                    checked={formData.isEscalationTarget}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        isEscalationTarget: e.target.checked,
-                      })
-                    }
-                    disabled={loading}
-                  />
-                  <Label htmlFor="isEscalationTarget" className="cursor-pointer">
-                    エスカレーション受信対象にする
-                  </Label>
-                </div>
+                <h3 className="text-sm font-semibold text-gray-700">電話リレー設定</h3>
+                <p className="text-xs text-gray-500">
+                  未報告時に電話通知する対象者を最大3人まで設定できます
+                </p>
 
+                {/* Escalation Grace Time */}
                 <div className="space-y-2">
                   <Label htmlFor="escalationGraceMinutes">
                     エスカレーション猶予時間（分）
                   </Label>
                   <Input
                     id="escalationGraceMinutes"
-                    name="escalationGraceMinutes"
                     type="number"
                     min="0"
-                    value={formData.escalationGraceMinutes}
-                    onChange={handleChange}
+                    value={escalationGraceMinutes}
+                    onChange={(e) => setEscalationGraceMinutes(Number(e.target.value))}
                     disabled={loading}
                   />
                   <p className="text-xs text-gray-500">
@@ -585,160 +625,339 @@ export default function NewStaffPage() {
                   </p>
                 </div>
 
-                <div className="space-y-6">
-                  {/* 1人目 */}
-                  <div className="space-y-3">
-                    <Label htmlFor="escalation1stStaff">1人目の担当者</Label>
-                    <Select
-                      id="escalation1stStaff"
-                      value={formData.escalation1stStaffId}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          escalation1stStaffId: e.target.value,
-                        })
-                      }
-                      disabled={loading}
-                    >
-                      <option value="">選択してください</option>
-                      {staffs
-                        .filter((s) => s.role === "manager" || s.role === "owner")
-                        .map((staff) => (
-                          <option key={staff.id} value={staff.id}>
-                            {staff.name} ({staff.role === "manager" ? "管理者" : "経営者"})
-                          </option>
-                        ))}
-                    </Select>
-                    <div className="ml-2">
-                      <RadioGroup
-                        value={formData.escalation1stMethod}
-                        onValueChange={(value) =>
-                          setFormData({
-                            ...formData,
-                            escalation1stMethod: value as "sms" | "call",
-                          })
-                        }
-                        disabled={loading}
-                        className="flex space-x-4"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="sms" id="escalation1st-sms" />
-                          <Label htmlFor="escalation1st-sms" className="cursor-pointer font-normal">
-                            SMS
-                          </Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="call" id="escalation1st-call" />
-                          <Label htmlFor="escalation1st-call" className="cursor-pointer font-normal">
-                            電話
-                          </Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
+                {/* Contact 1 */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">通知対象者 1</h4>
                   </div>
 
-                  {/* 2人目 */}
-                  <div className="space-y-3">
-                    <Label htmlFor="escalation2ndStaff">2人目の担当者</Label>
-                    <Select
-                      id="escalation2ndStaff"
-                      value={formData.escalation2ndStaffId}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          escalation2ndStaffId: e.target.value,
-                        })
-                      }
-                      disabled={loading}
-                    >
-                      <option value="">選択してください</option>
-                      {staffs
-                        .filter((s) => s.role === "manager" || s.role === "owner")
-                        .map((staff) => (
-                          <option key={staff.id} value={staff.id}>
-                            {staff.name} ({staff.role === "manager" ? "管理者" : "経営者"})
-                          </option>
-                        ))}
-                    </Select>
-                    <div className="ml-2">
-                      <RadioGroup
-                        value={formData.escalation2ndMethod}
-                        onValueChange={(value) =>
-                          setFormData({
-                            ...formData,
-                            escalation2ndMethod: value as "sms" | "call",
-                          })
-                        }
-                        disabled={loading}
-                        className="flex space-x-4"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="sms" id="escalation2nd-sms" />
-                          <Label htmlFor="escalation2nd-sms" className="cursor-pointer font-normal">
-                            SMS
-                          </Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="call" id="escalation2nd-call" />
-                          <Label htmlFor="escalation2nd-call" className="cursor-pointer font-normal">
-                            電話
-                          </Label>
-                        </div>
-                      </RadioGroup>
+                  <RadioGroup
+                    value={contact1Type || ""}
+                    onValueChange={(value) => setContact1Type(value as "self" | "staff" | "freetext")}
+                    disabled={loading}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="self" id="contact1-self" />
+                      <Label htmlFor="contact1-self" className="cursor-pointer">
+                        本人
+                      </Label>
                     </div>
-                  </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="staff" id="contact1-staff" />
+                      <Label htmlFor="contact1-staff" className="cursor-pointer">
+                        スタッフから選択
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="freetext" id="contact1-freetext" />
+                      <Label htmlFor="contact1-freetext" className="cursor-pointer">
+                        電話番号を直接入力
+                      </Label>
+                    </div>
+                  </RadioGroup>
 
-                  {/* 3人目 */}
-                  <div className="space-y-3">
-                    <Label htmlFor="escalation3rdStaff">3人目の担当者</Label>
-                    <Select
-                      id="escalation3rdStaff"
-                      value={formData.escalation3rdStaffId}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          escalation3rdStaffId: e.target.value,
-                        })
-                      }
-                      disabled={loading}
-                    >
-                      <option value="">選択してください</option>
-                      {staffs
-                        .filter((s) => s.role === "manager" || s.role === "owner")
-                        .map((staff) => (
-                          <option key={staff.id} value={staff.id}>
-                            {staff.name} ({staff.role === "manager" ? "管理者" : "経営者"})
-                          </option>
-                        ))}
-                    </Select>
-                    <div className="ml-2">
-                      <RadioGroup
-                        value={formData.escalation3rdMethod}
-                        onValueChange={(value) =>
-                          setFormData({
-                            ...formData,
-                            escalation3rdMethod: value as "sms" | "call",
-                          })
-                        }
+                  {contact1Type === "staff" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="contact1StaffId">スタッフ選択</Label>
+                      <Select
+                        id="contact1StaffId"
+                        value={contact1StaffId}
+                        onChange={(e) => setContact1StaffId(e.target.value)}
                         disabled={loading}
-                        className="flex space-x-4"
+                      >
+                        <option value="">選択してください</option>
+                        {staffs
+                          .filter((s) => s.role === "manager" || s.role === "owner")
+                          .map((staff) => (
+                            <option key={staff.id} value={staff.id}>
+                              {staff.name} ({staff.role === "owner" ? "経営者" : "管理者"})
+                            </option>
+                          ))}
+                      </Select>
+                    </div>
+                  )}
+
+                  {contact1Type === "freetext" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="contact1Phone">電話番号</Label>
+                      <Input
+                        id="contact1Phone"
+                        type="tel"
+                        placeholder="090-1234-5678"
+                        value={contact1Phone}
+                        onChange={(e) => setContact1Phone(e.target.value)}
+                        disabled={loading}
+                      />
+                    </div>
+                  )}
+
+                  {contact1Type && (
+                    <div className="space-y-2">
+                      <Label>通知方法</Label>
+                      <RadioGroup
+                        value={contact1Method}
+                        onValueChange={(value) => setContact1Method(value as "sms" | "call")}
+                        disabled={loading}
                       >
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="sms" id="escalation3rd-sms" />
-                          <Label htmlFor="escalation3rd-sms" className="cursor-pointer font-normal">
+                          <RadioGroupItem value="sms" id="contact1-sms" />
+                          <Label htmlFor="contact1-sms" className="cursor-pointer">
                             SMS
                           </Label>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="call" id="escalation3rd-call" />
-                          <Label htmlFor="escalation3rd-call" className="cursor-pointer font-normal">
+                          <RadioGroupItem value="call" id="contact1-call" />
+                          <Label htmlFor="contact1-call" className="cursor-pointer">
                             電話
                           </Label>
                         </div>
                       </RadioGroup>
                     </div>
-                  </div>
+                  )}
                 </div>
+
+                {/* Add Contact 2 Button */}
+                {!showContact2 && contact1Type && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowContact2(true)}
+                    disabled={loading}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    2人目を追加
+                  </Button>
+                )}
+
+                {/* Contact 2 */}
+                {showContact2 && (
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">通知対象者 2</h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowContact2(false);
+                          setContact2Type(null);
+                          setContact2StaffId("");
+                          setContact2Phone("");
+                          setContact2Method("sms");
+                          setShowContact3(false);
+                        }}
+                        disabled={loading}
+                      >
+                        削除
+                      </Button>
+                    </div>
+
+                    <RadioGroup
+                      value={contact2Type || ""}
+                      onValueChange={(value) => setContact2Type(value as "self" | "staff" | "freetext")}
+                      disabled={loading}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="self" id="contact2-self" />
+                        <Label htmlFor="contact2-self" className="cursor-pointer">
+                          本人
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="staff" id="contact2-staff" />
+                        <Label htmlFor="contact2-staff" className="cursor-pointer">
+                          スタッフから選択
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="freetext" id="contact2-freetext" />
+                        <Label htmlFor="contact2-freetext" className="cursor-pointer">
+                          電話番号を直接入力
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {contact2Type === "staff" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact2StaffId">スタッフ選択</Label>
+                        <Select
+                          id="contact2StaffId"
+                          value={contact2StaffId}
+                          onChange={(e) => setContact2StaffId(e.target.value)}
+                          disabled={loading}
+                        >
+                          <option value="">選択してください</option>
+                          {staffs
+                            .filter((s) => s.role === "manager" || s.role === "owner")
+                            .map((staff) => (
+                              <option key={staff.id} value={staff.id}>
+                                {staff.name} ({staff.role === "owner" ? "経営者" : "管理者"})
+                              </option>
+                            ))}
+                        </Select>
+                      </div>
+                    )}
+
+                    {contact2Type === "freetext" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact2Phone">電話番号</Label>
+                        <Input
+                          id="contact2Phone"
+                          type="tel"
+                          placeholder="090-1234-5678"
+                          value={contact2Phone}
+                          onChange={(e) => setContact2Phone(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    )}
+
+                    {contact2Type && (
+                      <div className="space-y-2">
+                        <Label>通知方法</Label>
+                        <RadioGroup
+                          value={contact2Method}
+                          onValueChange={(value) => setContact2Method(value as "sms" | "call")}
+                          disabled={loading}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sms" id="contact2-sms" />
+                            <Label htmlFor="contact2-sms" className="cursor-pointer">
+                              SMS
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="call" id="contact2-call" />
+                            <Label htmlFor="contact2-call" className="cursor-pointer">
+                              電話
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Add Contact 3 Button */}
+                {showContact2 && !showContact3 && contact2Type && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowContact3(true)}
+                    disabled={loading}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    3人目を追加する
+                  </Button>
+                )}
+
+                {/* Contact 3 */}
+                {showContact3 && (
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">通知対象者 3</h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowContact3(false);
+                          setContact3Type(null);
+                          setContact3StaffId("");
+                          setContact3Phone("");
+                          setContact3Method("sms");
+                        }}
+                        disabled={loading}
+                      >
+                        削除
+                      </Button>
+                    </div>
+
+                    <RadioGroup
+                      value={contact3Type || ""}
+                      onValueChange={(value) => setContact3Type(value as "self" | "staff" | "freetext")}
+                      disabled={loading}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="self" id="contact3-self" />
+                        <Label htmlFor="contact3-self" className="cursor-pointer">
+                          本人
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="staff" id="contact3-staff" />
+                        <Label htmlFor="contact3-staff" className="cursor-pointer">
+                          スタッフから選択
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="freetext" id="contact3-freetext" />
+                        <Label htmlFor="contact3-freetext" className="cursor-pointer">
+                          電話番号を直接入力
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {contact3Type === "staff" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact3StaffId">スタッフ選択</Label>
+                        <Select
+                          id="contact3StaffId"
+                          value={contact3StaffId}
+                          onChange={(e) => setContact3StaffId(e.target.value)}
+                          disabled={loading}
+                        >
+                          <option value="">選択してください</option>
+                          {staffs
+                            .filter((s) => s.role === "manager" || s.role === "owner")
+                            .map((staff) => (
+                              <option key={staff.id} value={staff.id}>
+                                {staff.name} ({staff.role === "owner" ? "経営者" : "管理者"})
+                              </option>
+                            ))}
+                        </Select>
+                      </div>
+                    )}
+
+                    {contact3Type === "freetext" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact3Phone">電話番号</Label>
+                        <Input
+                          id="contact3Phone"
+                          type="tel"
+                          placeholder="090-1234-5678"
+                          value={contact3Phone}
+                          onChange={(e) => setContact3Phone(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    )}
+
+                    {contact3Type && (
+                      <div className="space-y-2">
+                        <Label>通知方法</Label>
+                        <RadioGroup
+                          value={contact3Method}
+                          onValueChange={(value) => setContact3Method(value as "sms" | "call")}
+                          disabled={loading}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sms" id="contact3-sms" />
+                            <Label htmlFor="contact3-sms" className="cursor-pointer">
+                              SMS
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="call" id="contact3-call" />
+                            <Label htmlFor="contact3-call" className="cursor-pointer">
+                              電話
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

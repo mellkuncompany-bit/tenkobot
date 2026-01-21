@@ -132,32 +132,9 @@ export function calculatePayment(
   const overtimeMinutes = attendanceRecords.reduce((sum, r) => sum + (r.overtimeMinutes || 0), 0);
   const regularMinutes = totalWorkMinutes - overtimeMinutes;
 
-  let basePayment = 0;
-  let overtimePayment = 0;
-
-  switch (staff.paymentType) {
-    case "hourly":
-      const hourlyRate = staff.hourlyRate || 0;
-      basePayment = (regularMinutes / 60) * hourlyRate;
-      const overtimeRate = staff.overtimeRate || hourlyRate * 1.25;
-      overtimePayment = (overtimeMinutes / 60) * overtimeRate;
-      break;
-
-    case "daily":
-      const dailyRate = staff.dailyRate || 0;
-      basePayment = workDays * dailyRate;
-      // For daily rate, overtime is usually calculated separately at hourly rate
-      const dailyOvertimeRate = staff.overtimeRate || 0;
-      overtimePayment = (overtimeMinutes / 60) * dailyOvertimeRate;
-      break;
-
-    case "monthly":
-      basePayment = staff.monthlyRate || 0;
-      // For monthly rate, overtime is calculated at specified overtime rate
-      const monthlyOvertimeRate = staff.overtimeRate || 0;
-      overtimePayment = (overtimeMinutes / 60) * monthlyOvertimeRate;
-      break;
-  }
+  // Payment calculation is disabled as payment settings have been removed
+  const basePayment = 0;
+  const overtimePayment = 0;
 
   return {
     workDays,

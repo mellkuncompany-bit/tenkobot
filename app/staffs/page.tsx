@@ -209,7 +209,6 @@ export default function StaffsPage() {
                     <TableHead>作業名</TableHead>
                     <TableHead>説明</TableHead>
                     <TableHead>所要時間</TableHead>
-                    <TableHead>単価</TableHead>
                     <TableHead>デフォルト担当者</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
@@ -220,7 +219,6 @@ export default function StaffsPage() {
                       <TableCell className="font-medium">{template.name}</TableCell>
                       <TableCell className="max-w-md truncate">{template.description}</TableCell>
                       <TableCell>{template.estimatedDuration}分</TableCell>
-                      <TableCell>¥{template.unitPrice?.toLocaleString() || 0}</TableCell>
                       <TableCell>
                         <Badge variant={getDriverAssignmentBadgeVariant(template.defaultDriverAssignment)}>
                           {getDriverDisplayName(template.defaultDriverAssignment, staffs)}

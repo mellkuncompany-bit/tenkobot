@@ -13,8 +13,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { getStaff, updateStaff, getStaffs } from "@/lib/services/staff-service";
 import { getWorkTemplates } from "@/lib/services/work-template-service";
-import { StaffRole, PaymentType, WorkTemplate, Staff } from "@/lib/types/firestore";
-import { ArrowLeft } from "lucide-react";
+import { StaffRole, WorkTemplate, Staff } from "@/lib/types/firestore";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 
 export default function EditStaffPage() {
@@ -38,27 +38,11 @@ export default function EditStaffPage() {
     // License management
     licenseExpiryDate: "",
     licenseNotificationEnabled: true,
-    escalationGraceMinutes: 5,
-
-    // Escalation staff and notification methods
-    escalation1stStaffId: "",
-    escalation1stMethod: "sms" as "sms" | "call",
-    escalation2ndStaffId: "",
-    escalation2ndMethod: "sms" as "sms" | "call",
-    escalation3rdStaffId: "",
-    escalation3rdMethod: "call" as "sms" | "call",
 
     // Assigned work templates
     workAssignmentType: "unassigned" as "template" | "freetext" | "unassigned",
     assignedWorkTemplateIds: [] as string[],
     assignedWorkFreetext: "",
-
-    // Payment settings
-    paymentType: "hourly" as PaymentType,
-    hourlyRate: "",
-    dailyRate: "",
-    monthlyRate: "",
-    overtimeRate: "",
 
     // Recurring schedule
     useRecurringSchedule: false,
@@ -71,6 +55,27 @@ export default function EditStaffPage() {
     defaultStartTime: "09:00",
     defaultEndTime: "17:00",
   });
+
+  // Phone notification contacts state
+  const [contact1Type, setContact1Type] = useState<"self" | "staff" | "freetext" | null>(null);
+  const [contact1StaffId, setContact1StaffId] = useState("");
+  const [contact1Phone, setContact1Phone] = useState("");
+  const [contact1Method, setContact1Method] = useState<"sms" | "call">("sms");
+
+  const [showContact2, setShowContact2] = useState(false);
+  const [contact2Type, setContact2Type] = useState<"self" | "staff" | "freetext" | null>(null);
+  const [contact2StaffId, setContact2StaffId] = useState("");
+  const [contact2Phone, setContact2Phone] = useState("");
+  const [contact2Method, setContact2Method] = useState<"sms" | "call">("sms");
+
+  const [showContact3, setShowContact3] = useState(false);
+  const [contact3Type, setContact3Type] = useState<"self" | "staff" | "freetext" | null>(null);
+  const [contact3StaffId, setContact3StaffId] = useState("");
+  const [contact3Phone, setContact3Phone] = useState("");
+  const [contact3Method, setContact3Method] = useState<"sms" | "call">("sms");
+
+  // Phone relay escalation grace time
+  const [escalationGraceMinutes, setEscalationGraceMinutes] = useState(5);
 
   useEffect(() => {
     if (!admin) return;
@@ -112,24 +117,10 @@ export default function EditStaffPage() {
             ? new Date(staffData.licenseExpiryDate.toMillis()).toISOString().split('T')[0]
             : "",
           licenseNotificationEnabled: staffData.licenseNotificationEnabled ?? true,
-          escalationGraceMinutes: staffData.escalationGraceMinutes ?? 30,
-
-          escalation1stStaffId: staffData.escalation1stStaffId || "",
-          escalation1stMethod: staffData.escalation1stMethod || "sms",
-          escalation2ndStaffId: staffData.escalation2ndStaffId || "",
-          escalation2ndMethod: staffData.escalation2ndMethod || "sms",
-          escalation3rdStaffId: staffData.escalation3rdStaffId || "",
-          escalation3rdMethod: staffData.escalation3rdMethod || "call",
 
           workAssignmentType,
           assignedWorkTemplateIds: staffData.assignedWorkTemplateIds || [],
           assignedWorkFreetext: staffData.assignedWorkFreetext || "",
-
-          paymentType: staffData.paymentType,
-          hourlyRate: staffData.hourlyRate?.toString() || "",
-          dailyRate: staffData.dailyRate?.toString() || "",
-          monthlyRate: staffData.monthlyRate?.toString() || "",
-          overtimeRate: staffData.overtimeRate?.toString() || "",
 
           useRecurringSchedule: !!staffData.recurringSchedule,
           daysOfWeek: staffData.recurringSchedule?.daysOfWeek || [],
@@ -137,9 +128,36 @@ export default function EditStaffPage() {
           startDate: staffData.recurringSchedule?.startDate || "",
           endDate: staffData.recurringSchedule?.endDate || "",
 
-          defaultStartTime: staffData.defaultStartTime || "09:00",
-          defaultEndTime: staffData.defaultEndTime || "17:00",
+          defaultStartTime: staffData.defaultStartTime || "",
+          defaultEndTime: staffData.defaultEndTime || "",
         });
+
+        // Restore phone notification contacts
+        if (staffData.phoneNotificationContact1) {
+          setContact1Type(staffData.phoneNotificationContact1.type);
+          setContact1StaffId(staffData.phoneNotificationContact1.staffId || "");
+          setContact1Phone(staffData.phoneNotificationContact1.phoneNumber || "");
+          setContact1Method(staffData.phoneNotificationContact1.notificationMethod);
+        }
+
+        if (staffData.phoneNotificationContact2) {
+          setShowContact2(true);
+          setContact2Type(staffData.phoneNotificationContact2.type);
+          setContact2StaffId(staffData.phoneNotificationContact2.staffId || "");
+          setContact2Phone(staffData.phoneNotificationContact2.phoneNumber || "");
+          setContact2Method(staffData.phoneNotificationContact2.notificationMethod);
+        }
+
+        if (staffData.phoneNotificationContact3) {
+          setShowContact3(true);
+          setContact3Type(staffData.phoneNotificationContact3.type);
+          setContact3StaffId(staffData.phoneNotificationContact3.staffId || "");
+          setContact3Phone(staffData.phoneNotificationContact3.phoneNumber || "");
+          setContact3Method(staffData.phoneNotificationContact3.notificationMethod);
+        }
+
+        // Restore escalation grace time
+        setEscalationGraceMinutes(staffData.escalationGraceMinutes ?? 5);
 
         setLoading(false);
       } catch (error) {
@@ -201,20 +219,6 @@ export default function EditStaffPage() {
         ? Timestamp.fromDate(new Date(formData.licenseExpiryDate))
         : null;
 
-      // Parse payment rates
-      const hourlyRate = formData.paymentType === "hourly" && formData.hourlyRate
-        ? parseFloat(formData.hourlyRate)
-        : null;
-      const dailyRate = formData.paymentType === "daily" && formData.dailyRate
-        ? parseFloat(formData.dailyRate)
-        : null;
-      const monthlyRate = formData.paymentType === "monthly" && formData.monthlyRate
-        ? parseFloat(formData.monthlyRate)
-        : null;
-      const overtimeRate = formData.overtimeRate
-        ? parseFloat(formData.overtimeRate)
-        : null;
-
       // Build recurring schedule
       const recurringSchedule = formData.useRecurringSchedule
         ? {
@@ -222,6 +226,34 @@ export default function EditStaffPage() {
             excludeHolidays: formData.excludeHolidays,
             startDate: formData.startDate || null,
             endDate: formData.endDate || null,
+          }
+        : null;
+
+      // Build phone notification contacts
+      const phoneNotificationContact1 = contact1Type
+        ? {
+            type: contact1Type,
+            staffId: contact1Type === "staff" ? contact1StaffId : null,
+            phoneNumber: contact1Type === "freetext" ? contact1Phone : null,
+            notificationMethod: contact1Method,
+          }
+        : null;
+
+      const phoneNotificationContact2 = contact2Type
+        ? {
+            type: contact2Type,
+            staffId: contact2Type === "staff" ? contact2StaffId : null,
+            phoneNumber: contact2Type === "freetext" ? contact2Phone : null,
+            notificationMethod: contact2Method,
+          }
+        : null;
+
+      const phoneNotificationContact3 = contact3Type
+        ? {
+            type: contact3Type,
+            staffId: contact3Type === "staff" ? contact3StaffId : null,
+            phoneNumber: contact3Type === "freetext" ? contact3Phone : null,
+            notificationMethod: contact3Method,
           }
         : null;
 
@@ -236,25 +268,23 @@ export default function EditStaffPage() {
         licenseNotificationEnabled: formData.licenseNotificationEnabled,
         assignedWorkTemplateIds: formData.assignedWorkTemplateIds,
         assignedWorkFreetext: formData.assignedWorkFreetext || null,
-        escalationGraceMinutes: parseInt(formData.escalationGraceMinutes.toString()) || 30,
+        escalationGraceMinutes: parseInt(escalationGraceMinutes.toString()) || 5,
 
-        // Escalation staff settings
-        escalation1stStaffId: formData.escalation1stStaffId || null,
-        escalation1stMethod: formData.escalation1stMethod,
-        escalation2ndStaffId: formData.escalation2ndStaffId || null,
-        escalation2ndMethod: formData.escalation2ndMethod,
-        escalation3rdStaffId: formData.escalation3rdStaffId || null,
-        escalation3rdMethod: formData.escalation3rdMethod,
-
-        paymentType: formData.paymentType,
-        hourlyRate,
-        dailyRate,
-        monthlyRate,
-        overtimeRate,
+        // Escalation staff settings (set to null)
+        escalation1stStaffId: null,
+        escalation1stMethod: "sms",
+        escalation2ndStaffId: null,
+        escalation2ndMethod: "sms",
+        escalation3rdStaffId: null,
+        escalation3rdMethod: "call",
 
         recurringSchedule,
         defaultStartTime: formData.defaultStartTime || null,
         defaultEndTime: formData.defaultEndTime || null,
+
+        phoneNotificationContact1,
+        phoneNotificationContact2,
+        phoneNotificationContact3,
       });
 
       router.push("/staffs");
@@ -346,8 +376,8 @@ export default function EditStaffPage() {
                   disabled={saving}
                 >
                   <option value="driver">ドライバー</option>
-                  <option value="general">一般スタッフ</option>
-                  <option value="manager">マネージャー</option>
+                  <option value="manager">管理職</option>
+                  <option value="owner">経営者</option>
                 </Select>
               </div>
 
@@ -520,30 +550,45 @@ export default function EditStaffPage() {
                 <p className="text-sm text-muted-foreground">
                   繰り返し設定と組み合わせて、自動的にシフトを生成します
                 </p>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="defaultStartTime">始業時間（点呼確認時間）</Label>
-                    <Input
+                    <select
                       id="defaultStartTime"
                       name="defaultStartTime"
-                      type="time"
-                      value={formData.defaultStartTime}
+                      value={formData.defaultStartTime || ""}
                       onChange={handleChange}
                       disabled={saving}
-                      required
-                    />
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">未設定</option>
+                      {Array.from({ length: 48 }, (_, i) => {
+                        const hours = Math.floor(i / 2).toString().padStart(2, '0');
+                        const minutes = (i % 2 === 0 ? '00' : '30');
+                        const time = `${hours}:${minutes}`;
+                        return <option key={time} value={time}>{time}</option>;
+                      })}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="defaultEndTime">終業時間</Label>
-                    <Input
+                    <select
                       id="defaultEndTime"
                       name="defaultEndTime"
-                      type="time"
-                      value={formData.defaultEndTime}
+                      value={formData.defaultEndTime || ""}
                       onChange={handleChange}
                       disabled={saving}
-                      required
-                    />
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">未設定</option>
+                      {Array.from({ length: 48 }, (_, i) => {
+                        const hours = Math.floor(i / 2).toString().padStart(2, '0');
+                        const minutes = (i % 2 === 0 ? '00' : '30');
+                        const time = `${hours}:${minutes}`;
+                        return <option key={time} value={time}>{time}</option>;
+                      })}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -627,82 +672,364 @@ export default function EditStaffPage() {
 
               <div className="border-t pt-4"></div>
 
-              {/* Payment Settings */}
+              {/* Phone Relay Settings */}
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-700">給与設定</h3>
+                <h3 className="text-sm font-semibold text-gray-700">電話リレー設定</h3>
+                <p className="text-xs text-gray-500">
+                  未報告時に電話通知する対象者を最大3人まで設定できます
+                </p>
 
+                {/* Escalation Grace Time */}
                 <div className="space-y-2">
-                  <Label htmlFor="paymentType">給与形態</Label>
-                  <Select
-                    id="paymentType"
-                    name="paymentType"
-                    value={formData.paymentType}
-                    onChange={handleChange}
-                    disabled={saving}
-                  >
-                    <option value="hourly">時給</option>
-                    <option value="daily">日給</option>
-                    <option value="monthly">月給</option>
-                  </Select>
-                </div>
-
-                {formData.paymentType === "hourly" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="hourlyRate">時給（円）</Label>
-                    <Input
-                      id="hourlyRate"
-                      name="hourlyRate"
-                      type="number"
-                      placeholder="1500"
-                      value={formData.hourlyRate}
-                      onChange={handleChange}
-                      disabled={saving}
-                    />
-                  </div>
-                )}
-
-                {formData.paymentType === "daily" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="dailyRate">日給（円）</Label>
-                    <Input
-                      id="dailyRate"
-                      name="dailyRate"
-                      type="number"
-                      placeholder="12000"
-                      value={formData.dailyRate}
-                      onChange={handleChange}
-                      disabled={saving}
-                    />
-                  </div>
-                )}
-
-                {formData.paymentType === "monthly" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="monthlyRate">月給（円）</Label>
-                    <Input
-                      id="monthlyRate"
-                      name="monthlyRate"
-                      type="number"
-                      placeholder="250000"
-                      value={formData.monthlyRate}
-                      onChange={handleChange}
-                      disabled={saving}
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="overtimeRate">残業単価（円/時間）</Label>
+                  <Label htmlFor="escalationGraceMinutes">
+                    エスカレーション猶予時間（分）
+                  </Label>
                   <Input
-                    id="overtimeRate"
-                    name="overtimeRate"
+                    id="escalationGraceMinutes"
                     type="number"
-                    placeholder="2000"
-                    value={formData.overtimeRate}
-                    onChange={handleChange}
+                    min="0"
+                    value={escalationGraceMinutes}
+                    onChange={(e) => setEscalationGraceMinutes(Number(e.target.value))}
                     disabled={saving}
                   />
+                  <p className="text-xs text-gray-500">
+                    電話に出たが出勤メッセージが送られてこない場合、次の担当者に電話するまでの時間（デフォルト：5分）
+                  </p>
                 </div>
+
+                {/* Contact 1 */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">通知対象者 1</h4>
+                  </div>
+
+                  <RadioGroup
+                    value={contact1Type || ""}
+                    onValueChange={(value) => setContact1Type(value as "self" | "staff" | "freetext")}
+                    disabled={saving}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="self" id="contact1-self" />
+                      <Label htmlFor="contact1-self" className="cursor-pointer">
+                        本人
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="staff" id="contact1-staff" />
+                      <Label htmlFor="contact1-staff" className="cursor-pointer">
+                        スタッフから選択
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="freetext" id="contact1-freetext" />
+                      <Label htmlFor="contact1-freetext" className="cursor-pointer">
+                        電話番号を直接入力
+                      </Label>
+                    </div>
+                  </RadioGroup>
+
+                  {contact1Type === "staff" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="contact1StaffId">スタッフ選択</Label>
+                      <Select
+                        id="contact1StaffId"
+                        value={contact1StaffId}
+                        onChange={(e) => setContact1StaffId(e.target.value)}
+                        disabled={saving}
+                      >
+                        <option value="">選択してください</option>
+                        {staffs
+                          .filter((s) => s.role === "manager" || s.role === "owner")
+                          .map((staff) => (
+                            <option key={staff.id} value={staff.id}>
+                              {staff.name} ({staff.role === "owner" ? "経営者" : "管理者"})
+                            </option>
+                          ))}
+                      </Select>
+                    </div>
+                  )}
+
+                  {contact1Type === "freetext" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="contact1Phone">電話番号</Label>
+                      <Input
+                        id="contact1Phone"
+                        type="tel"
+                        placeholder="090-1234-5678"
+                        value={contact1Phone}
+                        onChange={(e) => setContact1Phone(e.target.value)}
+                        disabled={saving}
+                      />
+                    </div>
+                  )}
+
+                  {contact1Type && (
+                    <div className="space-y-2">
+                      <Label>通知方法</Label>
+                      <RadioGroup
+                        value={contact1Method}
+                        onValueChange={(value) => setContact1Method(value as "sms" | "call")}
+                        disabled={saving}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="sms" id="contact1-sms" />
+                          <Label htmlFor="contact1-sms" className="cursor-pointer">
+                            SMS
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="call" id="contact1-call" />
+                          <Label htmlFor="contact1-call" className="cursor-pointer">
+                            電話
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+                </div>
+
+                {/* Add Contact 2 Button */}
+                {!showContact2 && contact1Type && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowContact2(true)}
+                    disabled={saving}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    2人目を追加
+                  </Button>
+                )}
+
+                {/* Contact 2 */}
+                {showContact2 && (
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">通知対象者 2</h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowContact2(false);
+                          setContact2Type(null);
+                          setContact2StaffId("");
+                          setContact2Phone("");
+                          setContact2Method("sms");
+                          setShowContact3(false);
+                        }}
+                        disabled={saving}
+                      >
+                        削除
+                      </Button>
+                    </div>
+
+                    <RadioGroup
+                      value={contact2Type || ""}
+                      onValueChange={(value) => setContact2Type(value as "self" | "staff" | "freetext")}
+                      disabled={saving}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="self" id="contact2-self" />
+                        <Label htmlFor="contact2-self" className="cursor-pointer">
+                          本人
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="staff" id="contact2-staff" />
+                        <Label htmlFor="contact2-staff" className="cursor-pointer">
+                          スタッフから選択
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="freetext" id="contact2-freetext" />
+                        <Label htmlFor="contact2-freetext" className="cursor-pointer">
+                          電話番号を直接入力
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {contact2Type === "staff" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact2StaffId">スタッフ選択</Label>
+                        <Select
+                          id="contact2StaffId"
+                          value={contact2StaffId}
+                          onChange={(e) => setContact2StaffId(e.target.value)}
+                          disabled={saving}
+                        >
+                          <option value="">選択してください</option>
+                          {staffs
+                            .filter((s) => s.role === "manager" || s.role === "owner")
+                            .map((staff) => (
+                              <option key={staff.id} value={staff.id}>
+                                {staff.name} ({staff.role === "owner" ? "経営者" : "管理者"})
+                              </option>
+                            ))}
+                        </Select>
+                      </div>
+                    )}
+
+                    {contact2Type === "freetext" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact2Phone">電話番号</Label>
+                        <Input
+                          id="contact2Phone"
+                          type="tel"
+                          placeholder="090-1234-5678"
+                          value={contact2Phone}
+                          onChange={(e) => setContact2Phone(e.target.value)}
+                          disabled={saving}
+                        />
+                      </div>
+                    )}
+
+                    {contact2Type && (
+                      <div className="space-y-2">
+                        <Label>通知方法</Label>
+                        <RadioGroup
+                          value={contact2Method}
+                          onValueChange={(value) => setContact2Method(value as "sms" | "call")}
+                          disabled={saving}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sms" id="contact2-sms" />
+                            <Label htmlFor="contact2-sms" className="cursor-pointer">
+                              SMS
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="call" id="contact2-call" />
+                            <Label htmlFor="contact2-call" className="cursor-pointer">
+                              電話
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Add Contact 3 Button */}
+                {showContact2 && !showContact3 && contact2Type && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowContact3(true)}
+                    disabled={saving}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    3人目を追加
+                  </Button>
+                )}
+
+                {/* Contact 3 */}
+                {showContact3 && (
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">通知対象者 3</h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowContact3(false);
+                          setContact3Type(null);
+                          setContact3StaffId("");
+                          setContact3Phone("");
+                          setContact3Method("sms");
+                        }}
+                        disabled={saving}
+                      >
+                        削除
+                      </Button>
+                    </div>
+
+                    <RadioGroup
+                      value={contact3Type || ""}
+                      onValueChange={(value) => setContact3Type(value as "self" | "staff" | "freetext")}
+                      disabled={saving}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="self" id="contact3-self" />
+                        <Label htmlFor="contact3-self" className="cursor-pointer">
+                          本人
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="staff" id="contact3-staff" />
+                        <Label htmlFor="contact3-staff" className="cursor-pointer">
+                          スタッフから選択
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="freetext" id="contact3-freetext" />
+                        <Label htmlFor="contact3-freetext" className="cursor-pointer">
+                          電話番号を直接入力
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {contact3Type === "staff" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact3StaffId">スタッフ選択</Label>
+                        <Select
+                          id="contact3StaffId"
+                          value={contact3StaffId}
+                          onChange={(e) => setContact3StaffId(e.target.value)}
+                          disabled={saving}
+                        >
+                          <option value="">選択してください</option>
+                          {staffs
+                            .filter((s) => s.role === "manager" || s.role === "owner")
+                            .map((staff) => (
+                              <option key={staff.id} value={staff.id}>
+                                {staff.name} ({staff.role === "owner" ? "経営者" : "管理者"})
+                              </option>
+                            ))}
+                        </Select>
+                      </div>
+                    )}
+
+                    {contact3Type === "freetext" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact3Phone">電話番号</Label>
+                        <Input
+                          id="contact3Phone"
+                          type="tel"
+                          placeholder="090-1234-5678"
+                          value={contact3Phone}
+                          onChange={(e) => setContact3Phone(e.target.value)}
+                          disabled={saving}
+                        />
+                      </div>
+                    )}
+
+                    {contact3Type && (
+                      <div className="space-y-2">
+                        <Label>通知方法</Label>
+                        <RadioGroup
+                          value={contact3Method}
+                          onValueChange={(value) => setContact3Method(value as "sms" | "call")}
+                          disabled={saving}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sms" id="contact3-sms" />
+                            <Label htmlFor="contact3-sms" className="cursor-pointer">
+                              SMS
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="call" id="contact3-call" />
+                            <Label htmlFor="contact3-call" className="cursor-pointer">
+                              電話
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -85,19 +85,17 @@ export interface Staff {
   escalation3rdStaffId: string | null;
   escalation3rdMethod: "sms" | "call";
 
-  // Payment settings
-  paymentType: PaymentType;
-  hourlyRate: number | null;
-  dailyRate: number | null;
-  monthlyRate: number | null;
-  overtimeRate: number | null;
-
   // Recurring schedule
   recurringSchedule: RecurringSchedule | null;
 
   // Work hours (used for shift generation)
   defaultStartTime: string | null; // HH:mm format (例: "09:00")
   defaultEndTime: string | null;   // HH:mm format (例: "17:00")
+
+  // Phone notification contacts (up to 3 people)
+  phoneNotificationContact1: PhoneNotificationContact | null;
+  phoneNotificationContact2: PhoneNotificationContact | null;
+  phoneNotificationContact3: PhoneNotificationContact | null;
 
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -135,9 +133,9 @@ export interface DriverAssignment {
 
 // Phone notification contact
 export interface PhoneNotificationContact {
-  type: "staff" | "freetext";
+  type: "staff" | "freetext" | "self";
   staffId: string | null;        // type="staff"の場合に使用
-  phoneNumber: string | null;    // type="freetext"の場合に使用
+  phoneNumber: string | null;    // type="freetext"の場合に使用（type="self"の場合はスタッフ自身の電話番号を使用）
   notificationMethod: "sms" | "call";
 }
 
@@ -310,6 +308,7 @@ export interface Vehicle {
   licensePlate: string;
   inspectionDate: Timestamp; // Vehicle inspection expiry date
   inspectionNotificationEnabled: boolean;
+  inspectionNotificationAdminIds: string[]; // Administrators to notify
   isActive: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;

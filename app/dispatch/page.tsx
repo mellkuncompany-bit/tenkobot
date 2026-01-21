@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { getShifts } from "@/lib/services/shift-service";
+import { getShifts, generateRecurringShifts } from "@/lib/services/shift-service";
 import { getStaffs } from "@/lib/services/staff-service";
 import { getWorkTemplates } from "@/lib/services/work-template-service";
 import { Shift, Staff, WorkTemplate } from "@/lib/types/firestore";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Wand2, Filter, Pencil } from "lucide-react";
 
 // Helper function to get week dates (Sunday to Saturday)
 function getWeekDates(date: Date): Date[] {
@@ -54,85 +57,324 @@ export default function DispatchTablePage() {
   const [workTemplates, setWorkTemplates] = useState<WorkTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Filter states
+  const [filterDriver, setFilterDriver] = useState<string>("");
+  const [filterWork, setFilterWork] = useState<string>("");
+
+  // Auto-generation states
+  const [showAutoGen, setShowAutoGen] = useState(false);
+  const [autoGenStartDate, setAutoGenStartDate] = useState("");
+  const [autoGenEndDate, setAutoGenEndDate] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [genResult, setGenResult] = useState<{ created: number; skipped: number } | null>(null);
+
+  // Horizontal scroll state - start offset (in days from Sunday)
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const workTableRef = useRef<HTMLDivElement>(null);
+
+  // Touch swipe state
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
   const weekDates = getWeekDates(currentWeekStart);
 
-  useEffect(() => {
+  // Generate continuous date range for scrolling (7 days visible at a time)
+  const visibleDates = useMemo(() => {
+    const dates: Date[] = [];
+    const startDate = new Date(weekDates[0]);
+    startDate.setDate(startDate.getDate() + scrollOffset);
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      dates.push(date);
+    }
+
+    return dates;
+  }, [weekDates, scrollOffset]);
+
+  const fetchData = async () => {
     if (!admin) return;
 
-    const fetchData = async () => {
-      try {
-        setLoading(true);
+    try {
+      setLoading(true);
 
-        // Fetch data for the current week
-        const startDate = formatDateKey(weekDates[0]);
-        const endDate = formatDateKey(weekDates[6]);
+      const [shiftsData, staffsData, templatesData] = await Promise.all([
+        getShifts(admin.organizationId),
+        getStaffs(admin.organizationId),
+        getWorkTemplates(admin.organizationId),
+      ]);
 
-        const [shiftsData, staffsData, templatesData] = await Promise.all([
-          getShifts(admin.organizationId),
-          getStaffs(admin.organizationId),
-          getWorkTemplates(admin.organizationId),
-        ]);
+      setShifts(shiftsData);
+      setStaffs(staffsData);
+      setWorkTemplates(templatesData);
+    } catch (error) {
+      console.error("Error fetching dispatch data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        // Filter shifts for the current week
-        const weekShifts = shiftsData.filter(
-          (shift) => shift.date >= startDate && shift.date <= endDate
-        );
-
-        setShifts(weekShifts);
-        setStaffs(staffsData);
-        setWorkTemplates(templatesData);
-      } catch (error) {
-        console.error("Error fetching dispatch data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  useEffect(() => {
     fetchData();
-  }, [admin, currentWeekStart]);
+  }, [admin]);
 
   const goToPreviousWeek = () => {
     const newDate = new Date(currentWeekStart);
     newDate.setDate(newDate.getDate() - 7);
     setCurrentWeekStart(newDate);
+    setScrollOffset(0); // Reset scroll when changing weeks
   };
 
   const goToNextWeek = () => {
     const newDate = new Date(currentWeekStart);
     newDate.setDate(newDate.getDate() + 7);
     setCurrentWeekStart(newDate);
+    setScrollOffset(0); // Reset scroll when changing weeks
   };
 
   const goToThisWeek = () => {
     setCurrentWeekStart(new Date());
+    setScrollOffset(0); // Reset scroll
   };
 
-  // Group shifts by work template
-  const shiftsByTemplate = new Map<string, Map<string, Shift[]>>();
+  // Scroll functions for continuous date viewing
+  const scrollLeft = () => {
+    setScrollOffset((prev) => Math.max(prev - 1, -60)); // Allow scrolling back up to 60 days
+  };
 
-  shifts.forEach((shift) => {
-    if (!shiftsByTemplate.has(shift.workTemplateId)) {
-      shiftsByTemplate.set(shift.workTemplateId, new Map());
+  const scrollRight = () => {
+    setScrollOffset((prev) => Math.min(prev + 1, 60)); // Allow scrolling forward up to 60 days
+  };
+
+  // Touch swipe handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe) {
+      scrollRight();
     }
-    const dateMap = shiftsByTemplate.get(shift.workTemplateId)!;
-    if (!dateMap.has(shift.date)) {
-      dateMap.set(shift.date, []);
+    if (isRightSwipe) {
+      scrollLeft();
     }
-    dateMap.get(shift.date)!.push(shift);
-  });
+  };
 
-  // Get staff names for a shift
-  const getStaffNames = (shift: Shift): string => {
-    if (shift.staffIds.length === 0) return "×";
+  // Handle automatic shift generation
+  const handleAutoGenerate = async () => {
+    if (!admin || !autoGenStartDate || !autoGenEndDate) return;
 
-    const names = shift.staffIds
-      .map((id) => {
-        const staff = staffs.find((s) => s.id === id);
-        return staff ? staff.name : "不明";
+    setGenerating(true);
+    setGenResult(null);
+
+    try {
+      const result = await generateRecurringShifts(
+        admin.organizationId,
+        autoGenStartDate,
+        autoGenEndDate
+      );
+
+      setGenResult({
+        created: result.created,
+        skipped: result.skipped,
+      });
+
+      // Refresh shifts list
+      await fetchData();
+
+      // Close modal after a delay
+      setTimeout(() => {
+        setShowAutoGen(false);
+        setGenResult(null);
+        setAutoGenStartDate("");
+        setAutoGenEndDate("");
+      }, 3000);
+    } catch (error) {
+      console.error("Auto-generation error:", error);
+      alert("シフトの自動生成に失敗しました");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Filter shifts based on selected filters and visible dates
+  const visibleShifts = useMemo(() => {
+    const startDate = formatDateKey(visibleDates[0]);
+    const endDate = formatDateKey(visibleDates[6]);
+
+    let result = shifts.filter(
+      (shift) => shift.date >= startDate && shift.date <= endDate
+    );
+
+    // Filter by driver
+    if (filterDriver) {
+      result = result.filter((shift) => {
+        if (!shift.driverAssignment) return filterDriver === "unassigned";
+        if (filterDriver === "unassigned") {
+          return shift.driverAssignment.type === "unassigned";
+        }
+        return shift.driverAssignment.staffId === filterDriver;
+      });
+    }
+
+    // Filter by work template
+    if (filterWork) {
+      result = result.filter((shift) => shift.workTemplateId === filterWork);
+    }
+
+    return result;
+  }, [shifts, visibleDates, filterDriver, filterWork]);
+
+  // Section A: Group shifts by staff and date
+  const shiftsByStaff = useMemo(() => {
+    const map = new Map<string, Map<string, Shift[]>>();
+
+    // Initialize map for all active staff
+    staffs.forEach((staff) => {
+      map.set(staff.id, new Map());
+    });
+
+    // Group shifts by staff
+    visibleShifts.forEach((shift) => {
+      shift.staffIds.forEach((staffId) => {
+        if (!map.has(staffId)) {
+          map.set(staffId, new Map());
+        }
+        const dateMap = map.get(staffId)!;
+        if (!dateMap.has(shift.date)) {
+          dateMap.set(shift.date, []);
+        }
+        dateMap.get(shift.date)!.push(shift);
+      });
+    });
+
+    return map;
+  }, [visibleShifts, staffs]);
+
+  // Section B: Group shifts by work template
+  const shiftsByTemplate = useMemo(() => {
+    const map = new Map<string, Map<string, Shift[]>>();
+
+    visibleShifts.forEach((shift) => {
+      if (!map.has(shift.workTemplateId)) {
+        map.set(shift.workTemplateId, new Map());
+      }
+      const dateMap = map.get(shift.workTemplateId)!;
+      if (!dateMap.has(shift.date)) {
+        dateMap.set(shift.date, []);
+      }
+      dateMap.get(shift.date)!.push(shift);
+    });
+
+    return map;
+  }, [visibleShifts]);
+
+  // Get work template names for shifts
+  const getWorkNames = (shifts: Shift[]): string => {
+    if (shifts.length === 0) return "-";
+
+    const names = shifts
+      .map((shift) => {
+        const template = workTemplates.find((t) => t.id === shift.workTemplateId);
+        return template ? template.name : "不明";
       })
       .filter(Boolean);
 
-    return names.length > 0 ? names.join("・") : "×";
+    return names.length > 0 ? names.join("・") : "-";
+  };
+
+
+  // Get staff role in Japanese
+  const getStaffRoleJapanese = (role: string): string => {
+    switch (role) {
+      case "driver": return "ドライバー";
+      case "manager": return "管理職";
+      case "owner": return "経営者";
+      default: return role;
+    }
+  };
+
+  // Get staff assigned course names for a specific date (based on recurring schedule)
+  const getStaffAssignedCoursesForDate = (staff: Staff, date: Date): string => {
+    const dayOfWeek = date.getDay();
+
+    if (staff.assignedWorkTemplateIds && staff.assignedWorkTemplateIds.length > 0) {
+      const courseNames = staff.assignedWorkTemplateIds
+        .map(id => {
+          const template = workTemplates.find(t => t.id === id);
+          // Only include if template's recurring schedule includes this day
+          if (template && template.recurringSchedule &&
+              template.recurringSchedule.daysOfWeek.includes(dayOfWeek)) {
+            return template.name;
+          }
+          return null;
+        })
+        .filter(Boolean);
+      return courseNames.length > 0 ? courseNames.join("・") : "-";
+    }
+    if (staff.assignedWorkFreetext) {
+      // For freetext assignments, check staff's own recurring schedule
+      if (staff.recurringSchedule && staff.recurringSchedule.daysOfWeek.includes(dayOfWeek)) {
+        return staff.assignedWorkFreetext;
+      }
+      return "-";
+    }
+    return "-";
+  };
+
+  // Get driver names for work template shifts or ○ based on recurring schedule
+  const getDriverNamesOrCircle = (shifts: Shift[], template: WorkTemplate | undefined, date: Date): string => {
+    // If there are shifts, show driver names
+    if (shifts.length > 0) {
+      const driverNames = new Set<string>();
+      shifts.forEach(shift => {
+        shift.staffIds.forEach(staffId => {
+          const staff = staffs.find(s => s.id === staffId);
+          if (staff) {
+            driverNames.add(staff.name);
+          }
+        });
+      });
+      return driverNames.size > 0 ? Array.from(driverNames).join("・") : "○";
+    }
+
+    // If no shifts, check recurring schedule
+    if (template && template.recurringSchedule) {
+      const dayOfWeek = date.getDay();
+      if (template.recurringSchedule.daysOfWeek.includes(dayOfWeek)) {
+        return "○";
+      }
+    }
+
+    return "-";
+  };
+
+
+  // Get work times for shifts
+  const getWorkTimes = (shifts: Shift[]): string => {
+    if (shifts.length === 0) return "-";
+
+    const times = shifts
+      .map((shift) => {
+        const end = shift.endTime || "未定";
+        return `${shift.startTime}～${end}`;
+      })
+      .filter(Boolean);
+
+    return times.length > 0 ? times.join("、") : "-";
   };
 
   // Get work template name
@@ -141,11 +383,18 @@ export default function DispatchTablePage() {
     return template ? template.name : "不明な作業";
   };
 
-  // Get vehicle number (using driver assignment for now)
-  const getVehicleNumber = (templateId: string): string => {
-    const template = workTemplates.find((t) => t.id === templateId);
-    // For now, return empty. In a real implementation, you'd have a vehicle field
-    return "-";
+  // Get staff name
+  const getStaffName = (staffId: string): string => {
+    const staff = staffs.find((s) => s.id === staffId);
+    return staff ? staff.name : "不明";
+  };
+
+  // Handle cell click to edit shift
+  const handleCellClick = (dateKey: string, shifts: Shift[]) => {
+    if (shifts.length > 0) {
+      // Navigate to edit page for the first shift
+      router.push(`/shifts/${shifts[0].id}`);
+    }
   };
 
   if (loading) {
@@ -164,44 +413,323 @@ export default function DispatchTablePage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">配車表（週次）</h1>
+            <h1 className="text-3xl font-bold text-gray-900">配車表</h1>
             <p className="text-gray-600 mt-1">
-              {weekDates[0].toLocaleDateString("ja-JP")} 〜{" "}
-              {weekDates[6].toLocaleDateString("ja-JP")}
+              {visibleDates[0].toLocaleDateString("ja-JP")} 〜{" "}
+              {visibleDates[6].toLocaleDateString("ja-JP")}
             </p>
           </div>
-          <div className="flex space-x-2">
-            <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
-              <ChevronLeft className="h-4 w-4" />
-              前週
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowAutoGen(true)}>
+              <Wand2 className="h-4 w-4 mr-2" />
+              自動生成
             </Button>
-            <Button variant="outline" size="sm" onClick={goToThisWeek}>
-              今週
-            </Button>
-            <Button variant="outline" size="sm" onClick={goToNextWeek}>
-              次週
-              <ChevronRight className="h-4 w-4" />
+            <Button size="sm" onClick={() => router.push("/shifts/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              新規作成
             </Button>
           </div>
         </div>
 
-        {/* Dispatch Table */}
+        {/* Week Navigation with Scroll Controls */}
+        <div className="flex justify-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            前週
+          </Button>
+          <Button variant="outline" size="sm" onClick={goToThisWeek}>
+            今週
+          </Button>
+          <Button variant="outline" size="sm" onClick={goToNextWeek}>
+            次週
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+          <div className="border-l border-gray-300 mx-2"></div>
+          <Button variant="outline" size="sm" onClick={scrollLeft} disabled={scrollOffset <= -60}>
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            前日
+          </Button>
+          <Button variant="outline" size="sm" onClick={scrollRight} disabled={scrollOffset >= 60}>
+            次日
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+
+        {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle>週間配車表</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              絞り込み
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="filterDriver">担当ドライバー</Label>
+                <Select
+                  id="filterDriver"
+                  value={filterDriver}
+                  onChange={(e) => setFilterDriver(e.target.value)}
+                >
+                  <option value="">すべて</option>
+                  <option value="unassigned">未定</option>
+                  {staffs
+                    .filter((s) => s.role === "driver")
+                    .map((driver) => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.name}
+                      </option>
+                    ))}
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="filterWork">作業</Label>
+                <Select
+                  id="filterWork"
+                  value={filterWork}
+                  onChange={(e) => setFilterWork(e.target.value)}
+                >
+                  <option value="">すべて</option>
+                  {workTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+
+            {(filterDriver || filterWork) && (
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFilterDriver("");
+                    setFilterWork("");
+                  }}
+                >
+                  フィルターをクリア
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Auto Generation Modal */}
+        {showAutoGen && (
+          <Card className="border-blue-500 border-2">
+            <CardHeader>
+              <CardTitle>シフト自動生成</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                作業マスタの繰り返し設定に基づいてシフトを自動生成します
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="autoGenStartDate">開始日</Label>
+                  <Input
+                    id="autoGenStartDate"
+                    type="date"
+                    value={autoGenStartDate}
+                    onChange={(e) => setAutoGenStartDate(e.target.value)}
+                    disabled={generating}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="autoGenEndDate">終了日</Label>
+                  <Input
+                    id="autoGenEndDate"
+                    type="date"
+                    value={autoGenEndDate}
+                    onChange={(e) => setAutoGenEndDate(e.target.value)}
+                    disabled={generating}
+                  />
+                </div>
+              </div>
+
+              {genResult && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                  <p className="text-sm text-green-800">
+                    ✓ {genResult.created}件のシフトを作成しました
+                    {genResult.skipped > 0 && `（${genResult.skipped}件はスキップ）`}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleAutoGenerate}
+                  disabled={generating || !autoGenStartDate || !autoGenEndDate}
+                >
+                  {generating ? "生成中..." : "生成"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowAutoGen(false);
+                    setAutoGenStartDate("");
+                    setAutoGenEndDate("");
+                    setGenResult(null);
+                  }}
+                  disabled={generating}
+                >
+                  キャンセル
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Section A: Staff-based Dispatch Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              スタッフ別配車表
+              {(filterDriver || filterWork) && (
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  （絞り込み中）
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent
+            className="p-0 overflow-x-auto"
+            ref={scrollContainerRef}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <div className="min-w-full">
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
-                    <th className="sticky left-0 z-20 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-300">
-                      コース名
+                    <th className="sticky left-0 z-20 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-300 w-[100px]">
+                      スタッフ名
                     </th>
-                    <th className="sticky left-[150px] z-20 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-300">
-                      車番
+                    <th className="sticky left-[100px] z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-24">
+                      役割
                     </th>
-                    {weekDates.map((date, index) => {
+                    <th className="sticky left-[196px] z-20 bg-white px-4 py-3 text-center text-sm font-semibold text-gray-900 border-r border-gray-300 w-[100px]">
+                      車両No.
+                    </th>
+                    {visibleDates.map((date, index) => {
+                      const dayOfWeek = date.getDay();
+                      const isSunday = dayOfWeek === 0;
+                      const isHolidayDate = isHoliday(date);
+                      const isRed = isSunday || isHolidayDate;
+
+                      return (
+                        <th
+                          key={index}
+                          className={`px-4 py-3 text-center text-sm font-semibold border-r border-gray-300 ${
+                            isRed ? "text-red-600" : "text-gray-900"
+                          }`}
+                        >
+                          <div>
+                            {date.getMonth() + 1}/{date.getDate()}
+                          </div>
+                          <div className="text-xs">({getDayName(dayOfWeek)})</div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffs.map((staff, rowIndex) => {
+                    const dateMap = shiftsByStaff.get(staff.id) || new Map();
+
+                    return (
+                      <tr
+                        key={staff.id}
+                        className={`border-b border-gray-200 hover:bg-gray-50 ${
+                          rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
+                        }`}
+                      >
+                        <td className="sticky left-0 z-10 bg-inherit px-4 py-3 text-sm font-medium text-gray-900 border-r border-gray-300 w-[100px]">
+                          {staff.name}
+                        </td>
+                        <td className="sticky left-[100px] z-10 bg-inherit px-2 py-3 text-xs text-center text-gray-600 border-r border-gray-300 w-24">
+                          {getStaffRoleJapanese(staff.role)}
+                        </td>
+                        <td className="sticky left-[196px] z-10 bg-inherit px-4 py-3 text-sm text-center text-gray-600 border-r border-gray-300 w-[100px]">
+                          -
+                        </td>
+                        {visibleDates.map((date, index) => {
+                          const dateKey = formatDateKey(date);
+                          const dayShifts = dateMap.get(dateKey) || [];
+                          const assignedCourses = getStaffAssignedCoursesForDate(staff, date);
+                          const hasShift = dayShifts.length > 0;
+
+                          return (
+                            <td
+                              key={index}
+                              className="px-4 py-3 text-sm text-center text-gray-900 border-r border-gray-300 cursor-pointer hover:bg-blue-50 transition-colors"
+                              onClick={() => handleCellClick(dateKey, dayShifts)}
+                              title={dayShifts.length > 0 ? "クリックして編集" : undefined}
+                            >
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                <div className="text-xs text-gray-500">{assignedCourses}</div>
+                                {dayShifts.length > 0 && (
+                                  <Pencil className="h-3 w-3 text-gray-400" />
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {staffs.length === 0 && (
+                <div className="py-12 text-center text-gray-500">
+                  スタッフが登録されていません
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Section B: Work-based Dispatch Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              作業別配車表（時間）
+              {(filterDriver || filterWork) && (
+                <span className="text-sm font-normal text-gray-500 ml-2">
+                  （絞り込み中）
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent
+            className="p-0 overflow-x-auto"
+            ref={workTableRef}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="min-w-full">
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 z-10 bg-white">
+                  <tr className="border-b-2 border-gray-300">
+                    <th className="sticky left-0 z-20 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-300 w-[100px]">
+                      作業名
+                    </th>
+                    <th className="sticky left-[100px] z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-24">
+                      業務開始
+                    </th>
+                    <th className="sticky left-[196px] z-20 bg-white px-4 py-3 text-center text-sm font-semibold text-gray-900 border-r border-gray-300 w-[100px]">
+                      車両No.
+                    </th>
+                    {visibleDates.map((date, index) => {
                       const dayOfWeek = date.getDay();
                       const isSunday = dayOfWeek === 0;
                       const isHolidayDate = isHoliday(date);
@@ -226,8 +754,8 @@ export default function DispatchTablePage() {
                 <tbody>
                   {Array.from(shiftsByTemplate.keys()).map((templateId, rowIndex) => {
                     const dateMap = shiftsByTemplate.get(templateId)!;
+                    const template = workTemplates.find(t => t.id === templateId);
                     const templateName = getTemplateName(templateId);
-                    const vehicleNumber = getVehicleNumber(templateId);
 
                     return (
                       <tr
@@ -236,24 +764,33 @@ export default function DispatchTablePage() {
                           rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
                         }`}
                       >
-                        <td className="sticky left-0 z-10 bg-inherit px-4 py-3 text-sm font-medium text-gray-900 border-r border-gray-300">
+                        <td className="sticky left-0 z-10 bg-inherit px-4 py-3 text-sm font-medium text-gray-900 border-r border-gray-300 w-[100px]">
                           {templateName}
                         </td>
-                        <td className="sticky left-[150px] z-10 bg-inherit px-4 py-3 text-sm text-gray-600 border-r border-gray-300">
-                          {vehicleNumber}
+                        <td className="sticky left-[100px] z-10 bg-inherit px-2 py-3 text-xs text-center text-gray-600 border-r border-gray-300 w-24">
+                          {template?.reportCheckTime || "-"}
                         </td>
-                        {weekDates.map((date, index) => {
+                        <td className="sticky left-[196px] z-10 bg-inherit px-4 py-3 text-sm text-center text-gray-600 border-r border-gray-300 w-[100px]">
+                          -
+                        </td>
+                        {visibleDates.map((date, index) => {
                           const dateKey = formatDateKey(date);
                           const dayShifts = dateMap.get(dateKey) || [];
-                          const staffNames = dayShifts.map((shift) => getStaffNames(shift)).join(", ");
-                          const displayText = staffNames || "-";
+                          const displayText = getDriverNamesOrCircle(dayShifts, template, date);
 
                           return (
                             <td
                               key={index}
-                              className="px-4 py-3 text-sm text-center text-gray-900 border-r border-gray-300"
+                              className="px-4 py-3 text-sm text-center text-gray-900 border-r border-gray-300 cursor-pointer hover:bg-blue-50 transition-colors"
+                              onClick={() => handleCellClick(dateKey, dayShifts)}
+                              title={dayShifts.length > 0 ? "クリックして編集" : undefined}
                             >
-                              {displayText}
+                              <div className="flex items-center justify-center gap-1">
+                                {displayText}
+                                {dayShifts.length > 0 && (
+                                  <Pencil className="h-3 w-3 text-gray-400" />
+                                )}
+                              </div>
                             </td>
                           );
                         })}
@@ -265,7 +802,9 @@ export default function DispatchTablePage() {
 
               {shiftsByTemplate.size === 0 && (
                 <div className="py-12 text-center text-gray-500">
-                  この週の配車データはありません
+                  {filterDriver || filterWork
+                    ? "条件に一致する配車データはありません"
+                    : "この期間の配車データはありません"}
                 </div>
               )}
             </div>
@@ -278,10 +817,17 @@ export default function DispatchTablePage() {
             <CardTitle>使い方</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-gray-600">
-            <p>• 週単位で配車表を確認できます</p>
+            <p>• 2つのセクションで配車表を確認できます</p>
+            <p>  - スタッフ別配車表：各スタッフの役割、担当コース、車両ナンバーを確認</p>
+            <p>  - 作業別配車表：各作業の業務開始時間、車両ナンバー、割り当てられたドライバーを確認</p>
+            <p>• セルをクリックすると、配車の編集ができます</p>
             <p>• 前週・次週ボタンで週を切り替えられます</p>
-            <p>• 複数スタッフが割り当てられている場合は「・」で区切って表示されます</p>
-            <p>• スタッフが未割り当ての場合は「×」が表示されます</p>
+            <p>• 前日・次日ボタンで日付をスライドして閲覧できます</p>
+            <p>• 配車表の上で左右にスワイプすると、日付を前後にスクロールできます</p>
+            <p>• ドライバーや作業で絞り込みができます</p>
+            <p>• 自動生成ボタンで繰り返し設定から一括生成できます</p>
+            <p>• 担当作業は繰り返し設定の曜日に基づいて表示されます</p>
+            <p>• 複数のドライバーや作業は「・」で区切って表示されます</p>
             <p>• 日曜日と祝日は赤字で表示されます</p>
           </CardContent>
         </Card>

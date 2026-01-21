@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import { getStaffs, updateStaff } from "@/lib/services/staff-service";
 import { getWorkTemplates, updateWorkTemplate } from "@/lib/services/work-template-service";
 import { Staff, WorkTemplate } from "@/lib/types/firestore";
-import { Lock, Users, FileText, DollarSign, Receipt } from "lucide-react";
+import { Lock, FileText, DollarSign, Receipt } from "lucide-react";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { COLLECTIONS } from "@/lib/firebase/collections";
@@ -24,7 +24,7 @@ export default function AdminSettingsPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"salary" | "price" | "payroll" | "invoice">("salary");
+  const [activeTab, setActiveTab] = useState<"price" | "payroll" | "invoice">("price");
 
   // Data states
   const [staffs, setStaffs] = useState<Staff[]>([]);
@@ -119,17 +119,6 @@ export default function AdminSettingsPage() {
     setPassword("");
   };
 
-  const handleUpdateStaffSalary = async (staffId: string, data: Partial<Staff>) => {
-    try {
-      await updateStaff(staffId, data);
-      // Reload staffs
-      const staffsData = await getStaffs(admin!.organizationId);
-      setStaffs(staffsData);
-    } catch (err) {
-      alert("更新に失敗しました");
-    }
-  };
-
   const handleUpdateTemplatePrice = async (templateId: string, unitPrice: number) => {
     try {
       await updateWorkTemplate(templateId, { unitPrice });
@@ -189,7 +178,7 @@ export default function AdminSettingsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">管理者専用設定</h1>
-            <p className="text-gray-600 mt-1">給与設定・単価設定・給料明細・請求書管理</p>
+            <p className="text-gray-600 mt-1">単価設定・給料明細・請求書管理</p>
           </div>
           <Button variant="outline" onClick={handleLogout}>
             ログアウト
@@ -199,17 +188,6 @@ export default function AdminSettingsPage() {
         {/* Tabs */}
         <div className="border-b">
           <div className="flex space-x-4">
-            <button
-              className={`pb-2 px-4 ${
-                activeTab === "salary"
-                  ? "border-b-2 border-primary font-semibold"
-                  : "text-gray-600"
-              }`}
-              onClick={() => setActiveTab("salary")}
-            >
-              <Users className="h-4 w-4 inline mr-2" />
-              給与設定
-            </button>
             <button
               className={`pb-2 px-4 ${
                 activeTab === "price"
@@ -245,40 +223,6 @@ export default function AdminSettingsPage() {
             </button>
           </div>
         </div>
-
-        {/* Salary Settings Tab */}
-        {activeTab === "salary" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>スタッフ給与設定</CardTitle>
-              <CardDescription>各スタッフの給与設定を管理します</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>スタッフ名</TableHead>
-                    <TableHead>支払タイプ</TableHead>
-                    <TableHead>時給</TableHead>
-                    <TableHead>日給</TableHead>
-                    <TableHead>月給</TableHead>
-                    <TableHead>残業単価</TableHead>
-                    <TableHead>操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {staffs.map((staff) => (
-                    <SalaryRow
-                      key={staff.id}
-                      staff={staff}
-                      onUpdate={handleUpdateStaffSalary}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Price Settings Tab */}
         {activeTab === "price" && (
@@ -338,120 +282,6 @@ export default function AdminSettingsPage() {
         )}
       </div>
     </DashboardLayout>
-  );
-}
-
-// Salary Row Component
-function SalaryRow({
-  staff,
-  onUpdate,
-}: {
-  staff: Staff;
-  onUpdate: (id: string, data: Partial<Staff>) => void;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    paymentType: staff.paymentType,
-    hourlyRate: staff.hourlyRate || 0,
-    dailyRate: staff.dailyRate || 0,
-    monthlyRate: staff.monthlyRate || 0,
-    overtimeRate: staff.overtimeRate || 0,
-  });
-
-  const handleSave = () => {
-    onUpdate(staff.id, formData);
-    setIsEditing(false);
-  };
-
-  if (!isEditing) {
-    return (
-      <TableRow>
-        <TableCell>{staff.name}</TableCell>
-        <TableCell>
-          {staff.paymentType === "hourly" && "時給"}
-          {staff.paymentType === "daily" && "日給"}
-          {staff.paymentType === "monthly" && "月給"}
-        </TableCell>
-        <TableCell>¥{staff.hourlyRate?.toLocaleString() || 0}</TableCell>
-        <TableCell>¥{staff.dailyRate?.toLocaleString() || 0}</TableCell>
-        <TableCell>¥{staff.monthlyRate?.toLocaleString() || 0}</TableCell>
-        <TableCell>¥{staff.overtimeRate?.toLocaleString() || 0}</TableCell>
-        <TableCell>
-          <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
-            編集
-          </Button>
-        </TableCell>
-      </TableRow>
-    );
-  }
-
-  return (
-    <TableRow>
-      <TableCell>{staff.name}</TableCell>
-      <TableCell>
-        <select
-          value={formData.paymentType}
-          onChange={(e) =>
-            setFormData({ ...formData, paymentType: e.target.value as any })
-          }
-          className="border rounded px-2 py-1"
-        >
-          <option value="hourly">時給</option>
-          <option value="daily">日給</option>
-          <option value="monthly">月給</option>
-        </select>
-      </TableCell>
-      <TableCell>
-        <Input
-          type="number"
-          value={formData.hourlyRate}
-          onChange={(e) =>
-            setFormData({ ...formData, hourlyRate: Number(e.target.value) })
-          }
-          className="w-24"
-        />
-      </TableCell>
-      <TableCell>
-        <Input
-          type="number"
-          value={formData.dailyRate}
-          onChange={(e) =>
-            setFormData({ ...formData, dailyRate: Number(e.target.value) })
-          }
-          className="w-24"
-        />
-      </TableCell>
-      <TableCell>
-        <Input
-          type="number"
-          value={formData.monthlyRate}
-          onChange={(e) =>
-            setFormData({ ...formData, monthlyRate: Number(e.target.value) })
-          }
-          className="w-24"
-        />
-      </TableCell>
-      <TableCell>
-        <Input
-          type="number"
-          value={formData.overtimeRate}
-          onChange={(e) =>
-            setFormData({ ...formData, overtimeRate: Number(e.target.value) })
-          }
-          className="w-24"
-        />
-      </TableCell>
-      <TableCell>
-        <div className="flex space-x-2">
-          <Button size="sm" onClick={handleSave}>
-            保存
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>
-            キャンセル
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
   );
 }
 

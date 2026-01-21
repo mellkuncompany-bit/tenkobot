@@ -52,19 +52,19 @@ export default function EditWorkTemplatePage() {
   const [managers, setManagers] = useState<Staff[]>([]);
 
   // Contact 1
-  const [contact1Type, setContact1Type] = useState<"staff" | "freetext" | null>(null);
+  const [contact1Type, setContact1Type] = useState<"staff" | "freetext" | "self" | null>(null);
   const [contact1StaffId, setContact1StaffId] = useState("");
   const [contact1Phone, setContact1Phone] = useState("");
   const [contact1Method, setContact1Method] = useState<"sms" | "call">("sms");
 
   // Contact 2
-  const [contact2Type, setContact2Type] = useState<"staff" | "freetext" | null>(null);
+  const [contact2Type, setContact2Type] = useState<"staff" | "freetext" | "self" | null>(null);
   const [contact2StaffId, setContact2StaffId] = useState("");
   const [contact2Phone, setContact2Phone] = useState("");
   const [contact2Method, setContact2Method] = useState<"sms" | "call">("sms");
 
   // Contact 3
-  const [contact3Type, setContact3Type] = useState<"staff" | "freetext" | null>(null);
+  const [contact3Type, setContact3Type] = useState<"staff" | "freetext" | "self" | null>(null);
   const [contact3StaffId, setContact3StaffId] = useState("");
   const [contact3Phone, setContact3Phone] = useState("");
   const [contact3Method, setContact3Method] = useState<"sms" | "call">("sms");
@@ -205,7 +205,7 @@ export default function EditWorkTemplatePage() {
 
       // Build phone notification contacts
       const buildContact = (
-        type: "staff" | "freetext" | null,
+        type: "staff" | "freetext" | "self" | null,
         staffId: string,
         phone: string,
         method: "sms" | "call"
@@ -213,6 +213,7 @@ export default function EditWorkTemplatePage() {
         if (!type) return null;
         if (type === "staff" && !staffId) return null;
         if (type === "freetext" && !phone) return null;
+        // "self" is not applicable for work templates, but included for type compatibility
 
         return {
           type,

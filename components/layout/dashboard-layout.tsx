@@ -31,8 +31,7 @@ interface DashboardLayoutProps {
 const navigation = [
   { name: "ダッシュボード", href: "/dashboard", icon: LayoutDashboard },
   { name: "スタッフ・作業管理", href: "/staffs", icon: Users },
-  { name: "シフト管理", href: "/shifts", icon: Calendar },
-  { name: "配車表（週次）", href: "/dispatch", icon: Truck },
+  { name: "配車表", href: "/dispatch", icon: Calendar },
   { name: "勤怠管理", href: "/attendance", icon: Clock },
   { name: "車両・燃料", href: "/vehicles", icon: Truck },
   { name: "リマインダー", href: "/reminders", icon: Bell },
