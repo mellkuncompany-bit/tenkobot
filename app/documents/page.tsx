@@ -180,12 +180,17 @@ export default function DocumentsPage() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end space-x-2">
                           <Button
-                            variant="ghost"
+                            variant="default"
                             size="sm"
-                            onClick={() => window.open(doc.fileUrl, "_blank")}
-                            title="プレビュー"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(doc.fileUrl, "_blank");
+                            }}
+                            className="px-4"
                           >
-                            <Eye className="h-4 w-4" />
+                            {doc.category === "manual" && "作業マニュアルを確認する"}
+                            {doc.category === "policy" && "ポリシーを確認する"}
+                            {doc.category === "other" && "ファイルを確認する"}
                           </Button>
                           <Button
                             variant="ghost"
