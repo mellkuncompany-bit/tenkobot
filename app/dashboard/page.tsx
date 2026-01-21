@@ -28,18 +28,31 @@ export default function DashboardPage() {
     const fetchDashboardData = async () => {
       try {
         const today = formatDateKey(new Date());
+        const oneWeekLater = formatDateKey(
+          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        );
 
-        // Fetch today's shifts
+        // Fetch next 7 days' shifts
         const shiftsQuery = query(
           collection(db, COLLECTIONS.SHIFTS),
           where("organizationId", "==", admin.organizationId),
-          where("date", "==", today)
+          where("date", ">=", today),
+          where("date", "<=", oneWeekLater)
         );
         const shiftsSnapshot = await getDocs(shiftsQuery);
         const shifts = shiftsSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         })) as Shift[];
+
+        // Sort by date and time
+        shifts.sort((a, b) => {
+          if (a.date !== b.date) {
+            return a.date.localeCompare(b.date);
+          }
+          return (a.startTime || "").localeCompare(b.startTime || "");
+        });
+
         setTodayShifts(shifts);
 
         // Fetch attendance records for today
@@ -104,11 +117,12 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">本日のシフト</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-600">今週のシフト</CardTitle>
               <Calendar className="h-4 w-4 text-gray-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{todayShifts.length}</div>
+              <p className="text-xs text-muted-foreground">今日から7日間</p>
             </CardContent>
           </Card>
 
@@ -143,14 +157,14 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Today's Shifts */}
+        {/* Week's Shifts */}
         <Card>
           <CardHeader>
-            <CardTitle>本日のシフト</CardTitle>
+            <CardTitle>今週のシフト（今日から7日間）</CardTitle>
           </CardHeader>
           <CardContent>
             {todayShifts.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">本日のシフトはありません</p>
+              <p className="text-gray-500 text-center py-8">シフトはありません</p>
             ) : (
               <div className="space-y-2">
                 {todayShifts.map((shift) => {
@@ -163,7 +177,7 @@ export default function DashboardPage() {
                       <div className="flex items-center space-x-4">
                         <Users className="h-5 w-5 text-gray-400" />
                         <div>
-                          <p className="font-medium">スタッフID: {shift.staffIds.join(", ")}</p>
+                          <p className="font-medium">{shift.date} - スタッフID: {shift.staffIds.join(", ") || "未割当"}</p>
                           <p className="text-sm text-gray-500">
                             {shift.startTime} 〜 {shift.endTime || "未定"}
                           </p>

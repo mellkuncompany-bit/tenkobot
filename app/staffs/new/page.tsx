@@ -64,6 +64,10 @@ export default function NewStaffPage() {
     excludeHolidays: false,
     startDate: "",
     endDate: "",
+
+    // Work hours
+    defaultStartTime: "09:00",
+    defaultEndTime: "17:00",
   });
 
   useEffect(() => {
@@ -188,6 +192,8 @@ export default function NewStaffPage() {
         overtimeRate,
 
         recurringSchedule,
+        defaultStartTime: formData.defaultStartTime || null,
+        defaultEndTime: formData.defaultEndTime || null,
       });
 
       // 繰り返し設定がある場合、自動的にシフトを生成
@@ -430,6 +436,42 @@ export default function NewStaffPage() {
                     />
                   </div>
                 )}
+              </div>
+
+              <div className="border-t pt-4"></div>
+
+              {/* Work Hours */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-700">勤務時間（シフト自動生成に使用）</h3>
+                <p className="text-sm text-muted-foreground">
+                  繰り返し設定と組み合わせて、自動的にシフトを生成します
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultStartTime">始業時間（点呼確認時間）</Label>
+                    <Input
+                      id="defaultStartTime"
+                      name="defaultStartTime"
+                      type="time"
+                      value={formData.defaultStartTime}
+                      onChange={handleChange}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultEndTime">終業時間</Label>
+                    <Input
+                      id="defaultEndTime"
+                      name="defaultEndTime"
+                      type="time"
+                      value={formData.defaultEndTime}
+                      onChange={handleChange}
+                      disabled={loading}
+                      required
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="border-t pt-4"></div>

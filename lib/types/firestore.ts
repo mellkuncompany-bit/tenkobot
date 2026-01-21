@@ -95,6 +95,10 @@ export interface Staff {
   // Recurring schedule
   recurringSchedule: RecurringSchedule | null;
 
+  // Work hours (used for shift generation)
+  defaultStartTime: string | null; // HH:mm format (例: "09:00")
+  defaultEndTime: string | null;   // HH:mm format (例: "17:00")
+
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

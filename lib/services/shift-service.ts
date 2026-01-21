@@ -251,8 +251,8 @@ export async function generateRecurringShifts(
             organizationId,
             date: dateStr,
             staffIds: [staff.id],
-            startTime: "09:00", // Default time, can be customized
-            endTime: "17:00",   // Default time, can be customized
+            startTime: staff.defaultStartTime || "09:00", // Use staff's default start time
+            endTime: staff.defaultEndTime || "17:00",     // Use staff's default end time
             workTemplateId,
             escalationPolicyId: workTemplate.escalationPolicyId || "",
             status: "scheduled",
