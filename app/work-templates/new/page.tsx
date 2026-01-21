@@ -20,9 +20,9 @@ import {
   createUnassignedDriverAssignment,
   createFreetextDriverAssignment,
 } from "@/lib/services/driver-assignment-service";
-import { Staff, DriverAssignmentType } from "@/lib/types/firestore";
+import { Staff, DriverAssignmentType, PhoneNotificationContact } from "@/lib/types/firestore";
 import { formatDateKey } from "@/lib/utils/date";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 
 export default function NewWorkTemplatePage() {
   const { admin } = useAuth();
@@ -51,10 +51,41 @@ export default function NewWorkTemplatePage() {
   const [driverPhone, setDriverPhone] = useState("");
   const [drivers, setDrivers] = useState<Staff[]>([]);
 
-  // Load drivers
+  // Phone notification contacts state
+  const [showContact2, setShowContact2] = useState(false);
+  const [showContact3, setShowContact3] = useState(false);
+  const [managers, setManagers] = useState<Staff[]>([]);
+
+  // Contact 1
+  const [contact1Type, setContact1Type] = useState<"staff" | "freetext" | null>(null);
+  const [contact1StaffId, setContact1StaffId] = useState("");
+  const [contact1Phone, setContact1Phone] = useState("");
+  const [contact1Method, setContact1Method] = useState<"sms" | "call">("sms");
+
+  // Contact 2
+  const [contact2Type, setContact2Type] = useState<"staff" | "freetext" | null>(null);
+  const [contact2StaffId, setContact2StaffId] = useState("");
+  const [contact2Phone, setContact2Phone] = useState("");
+  const [contact2Method, setContact2Method] = useState<"sms" | "call">("sms");
+
+  // Contact 3
+  const [contact3Type, setContact3Type] = useState<"staff" | "freetext" | null>(null);
+  const [contact3StaffId, setContact3StaffId] = useState("");
+  const [contact3Phone, setContact3Phone] = useState("");
+  const [contact3Method, setContact3Method] = useState<"sms" | "call">("sms");
+
+  // Load drivers and managers
   useEffect(() => {
     if (!admin) return;
     getStaffsByRole(admin.organizationId, "driver").then(setDrivers);
+
+    // Load managers and owners for phone notification contacts
+    Promise.all([
+      getStaffsByRole(admin.organizationId, "manager"),
+      getStaffsByRole(admin.organizationId, "owner"),
+    ]).then(([managersData, ownersData]) => {
+      setManagers([...managersData, ...ownersData]);
+    });
   }, [admin]);
 
   const handleDayToggle = (day: number) => {
@@ -101,6 +132,38 @@ export default function NewWorkTemplatePage() {
         defaultDriverAssignment = createUnassignedDriverAssignment();
       }
 
+      // Build phone notification contacts
+      const buildContact = (
+        type: "staff" | "freetext" | null,
+        staffId: string,
+        phone: string,
+        method: "sms" | "call"
+      ): PhoneNotificationContact | null => {
+        if (!type) return null;
+        if (type === "staff" && !staffId) return null;
+        if (type === "freetext" && !phone) return null;
+
+        return {
+          type,
+          staffId: type === "staff" ? staffId : null,
+          phoneNumber: type === "freetext" ? phone : null,
+          notificationMethod: method,
+        };
+      };
+
+      const phoneNotificationContact1 = buildContact(
+        contact1Type,
+        contact1StaffId,
+        contact1Phone,
+        contact1Method
+      );
+      const phoneNotificationContact2 = showContact2
+        ? buildContact(contact2Type, contact2StaffId, contact2Phone, contact2Method)
+        : null;
+      const phoneNotificationContact3 = showContact3
+        ? buildContact(contact3Type, contact3StaffId, contact3Phone, contact3Method)
+        : null;
+
       await createWorkTemplate({
         organizationId: admin.organizationId,
         name: formData.name,
@@ -112,9 +175,9 @@ export default function NewWorkTemplatePage() {
         unitPrice: 0, // 管理者専用ページで設定
         defaultDriverAssignment,
         escalationPolicyId: null, // 今後実装
-        phoneNotificationContact1: null,
-        phoneNotificationContact2: null,
-        phoneNotificationContact3: null,
+        phoneNotificationContact1,
+        phoneNotificationContact2,
+        phoneNotificationContact3,
         isActive: true,
       });
 
@@ -436,6 +499,326 @@ export default function NewWorkTemplatePage() {
                     <p className="text-xs text-gray-500">
                       将来の自動架電機能で使用されます
                     </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t pt-4"></div>
+
+              {/* Phone Notification Contacts */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-700">電話通知対象者</h3>
+                <p className="text-xs text-gray-500">
+                  未報告時に電話通知する対象者を最大3人まで設定できます
+                </p>
+
+                {/* Contact 1 */}
+                <div className="space-y-4 p-4 border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">通知対象者 1</h4>
+                  </div>
+
+                  <RadioGroup
+                    value={contact1Type || ""}
+                    onValueChange={(value) => setContact1Type(value as "staff" | "freetext")}
+                    disabled={loading}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="staff" id="contact1-staff" />
+                      <Label htmlFor="contact1-staff" className="cursor-pointer">
+                        スタッフから選択
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="freetext" id="contact1-freetext" />
+                      <Label htmlFor="contact1-freetext" className="cursor-pointer">
+                        電話番号を直接入力
+                      </Label>
+                    </div>
+                  </RadioGroup>
+
+                  {contact1Type === "staff" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="contact1StaffId">スタッフ選択</Label>
+                      <Select
+                        id="contact1StaffId"
+                        value={contact1StaffId}
+                        onChange={(e) => setContact1StaffId(e.target.value)}
+                        disabled={loading}
+                      >
+                        <option value="">選択してください</option>
+                        {managers.map((manager) => (
+                          <option key={manager.id} value={manager.id}>
+                            {manager.name} ({manager.role === "owner" ? "経営者" : "管理者"})
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  )}
+
+                  {contact1Type === "freetext" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="contact1Phone">電話番号</Label>
+                      <Input
+                        id="contact1Phone"
+                        type="tel"
+                        placeholder="090-1234-5678"
+                        value={contact1Phone}
+                        onChange={(e) => setContact1Phone(e.target.value)}
+                        disabled={loading}
+                      />
+                    </div>
+                  )}
+
+                  {contact1Type && (
+                    <div className="space-y-2">
+                      <Label>通知方法</Label>
+                      <RadioGroup
+                        value={contact1Method}
+                        onValueChange={(value) => setContact1Method(value as "sms" | "call")}
+                        disabled={loading}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="sms" id="contact1-sms" />
+                          <Label htmlFor="contact1-sms" className="cursor-pointer">
+                            SMS
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="call" id="contact1-call" />
+                          <Label htmlFor="contact1-call" className="cursor-pointer">
+                            電話
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+                </div>
+
+                {/* Add Contact 2 Button */}
+                {!showContact2 && contact1Type && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowContact2(true)}
+                    disabled={loading}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    2人目を追加
+                  </Button>
+                )}
+
+                {/* Contact 2 */}
+                {showContact2 && (
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">通知対象者 2</h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowContact2(false);
+                          setContact2Type(null);
+                          setContact2StaffId("");
+                          setContact2Phone("");
+                          setContact2Method("sms");
+                          setShowContact3(false);
+                        }}
+                        disabled={loading}
+                      >
+                        削除
+                      </Button>
+                    </div>
+
+                    <RadioGroup
+                      value={contact2Type || ""}
+                      onValueChange={(value) => setContact2Type(value as "staff" | "freetext")}
+                      disabled={loading}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="staff" id="contact2-staff" />
+                        <Label htmlFor="contact2-staff" className="cursor-pointer">
+                          スタッフから選択
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="freetext" id="contact2-freetext" />
+                        <Label htmlFor="contact2-freetext" className="cursor-pointer">
+                          電話番号を直接入力
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {contact2Type === "staff" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact2StaffId">スタッフ選択</Label>
+                        <Select
+                          id="contact2StaffId"
+                          value={contact2StaffId}
+                          onChange={(e) => setContact2StaffId(e.target.value)}
+                          disabled={loading}
+                        >
+                          <option value="">選択してください</option>
+                          {managers.map((manager) => (
+                            <option key={manager.id} value={manager.id}>
+                              {manager.name} ({manager.role === "owner" ? "経営者" : "管理者"})
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    )}
+
+                    {contact2Type === "freetext" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact2Phone">電話番号</Label>
+                        <Input
+                          id="contact2Phone"
+                          type="tel"
+                          placeholder="090-1234-5678"
+                          value={contact2Phone}
+                          onChange={(e) => setContact2Phone(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    )}
+
+                    {contact2Type && (
+                      <div className="space-y-2">
+                        <Label>通知方法</Label>
+                        <RadioGroup
+                          value={contact2Method}
+                          onValueChange={(value) => setContact2Method(value as "sms" | "call")}
+                          disabled={loading}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sms" id="contact2-sms" />
+                            <Label htmlFor="contact2-sms" className="cursor-pointer">
+                              SMS
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="call" id="contact2-call" />
+                            <Label htmlFor="contact2-call" className="cursor-pointer">
+                              電話
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Add Contact 3 Button */}
+                {showContact2 && !showContact3 && contact2Type && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowContact3(true)}
+                    disabled={loading}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    3人目を追加する
+                  </Button>
+                )}
+
+                {/* Contact 3 */}
+                {showContact3 && (
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">通知対象者 3</h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowContact3(false);
+                          setContact3Type(null);
+                          setContact3StaffId("");
+                          setContact3Phone("");
+                          setContact3Method("sms");
+                        }}
+                        disabled={loading}
+                      >
+                        削除
+                      </Button>
+                    </div>
+
+                    <RadioGroup
+                      value={contact3Type || ""}
+                      onValueChange={(value) => setContact3Type(value as "staff" | "freetext")}
+                      disabled={loading}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="staff" id="contact3-staff" />
+                        <Label htmlFor="contact3-staff" className="cursor-pointer">
+                          スタッフから選択
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="freetext" id="contact3-freetext" />
+                        <Label htmlFor="contact3-freetext" className="cursor-pointer">
+                          電話番号を直接入力
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {contact3Type === "staff" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact3StaffId">スタッフ選択</Label>
+                        <Select
+                          id="contact3StaffId"
+                          value={contact3StaffId}
+                          onChange={(e) => setContact3StaffId(e.target.value)}
+                          disabled={loading}
+                        >
+                          <option value="">選択してください</option>
+                          {managers.map((manager) => (
+                            <option key={manager.id} value={manager.id}>
+                              {manager.name} ({manager.role === "owner" ? "経営者" : "管理者"})
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    )}
+
+                    {contact3Type === "freetext" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="contact3Phone">電話番号</Label>
+                        <Input
+                          id="contact3Phone"
+                          type="tel"
+                          placeholder="090-1234-5678"
+                          value={contact3Phone}
+                          onChange={(e) => setContact3Phone(e.target.value)}
+                          disabled={loading}
+                        />
+                      </div>
+                    )}
+
+                    {contact3Type && (
+                      <div className="space-y-2">
+                        <Label>通知方法</Label>
+                        <RadioGroup
+                          value={contact3Method}
+                          onValueChange={(value) => setContact3Method(value as "sms" | "call")}
+                          disabled={loading}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="sms" id="contact3-sms" />
+                            <Label htmlFor="contact3-sms" className="cursor-pointer">
+                              SMS
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="call" id="contact3-call" />
+                            <Label htmlFor="contact3-call" className="cursor-pointer">
+                              電話
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
