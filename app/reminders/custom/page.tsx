@@ -21,11 +21,13 @@ import { useAuth } from "@/lib/hooks/use-auth";
 import {
   getReminders,
   createReminder,
-  completeReminder,
+  completeReminderWithRecurring,
   deleteReminder,
 } from "@/lib/services/reminder-service";
-import { Reminder } from "@/lib/types/firestore";
-import { Plus, Check, Trash2, ArrowLeft } from "lucide-react";
+import { Reminder, RecurringPattern, NotificationTiming, RecurringFrequency, RecurringEndType } from "@/lib/types/firestore";
+import { Plus, Check, Trash2, ArrowLeft, X, Bell } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select } from "@/components/ui/select";
 
 export default function CustomRemindersPage() {
   const { admin } = useAuth();
@@ -37,9 +39,24 @@ export default function CustomRemindersPage() {
     title: "",
     description: "",
     eventDate: "",
-    notificationDaysBefore: 7, // Default to 7 days before
+    notificationDaysBefore: 7, // Default to 7 days before (backward compatibility)
   });
   const [submitting, setSubmitting] = useState(false);
+
+  // Recurring settings state
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringFrequency, setRecurringFrequency] = useState<RecurringFrequency>("monthly");
+  const [recurringInterval, setRecurringInterval] = useState(1);
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
+  const [dayOfMonth, setDayOfMonth] = useState(1);
+  const [endType, setEndType] = useState<RecurringEndType>("never");
+  const [endDate, setEndDate] = useState("");
+  const [endCount, setEndCount] = useState(10);
+
+  // Notification timings state
+  const [notificationTimings, setNotificationTimings] = useState<NotificationTiming[]>([
+    { daysBefore: 7, time: "09:00" }
+  ]);
 
   const fetchReminders = async () => {
     if (!admin) return;
@@ -63,17 +80,45 @@ export default function CustomRemindersPage() {
 
     setSubmitting(true);
     try {
+      // Build recurring pattern
+      let recurringPattern: RecurringPattern | null = null;
+      if (isRecurring) {
+        recurringPattern = {
+          frequency: recurringFrequency,
+          interval: recurringInterval,
+          daysOfWeek: recurringFrequency === "weekly" ? daysOfWeek : undefined,
+          dayOfMonth: recurringFrequency === "monthly" ? dayOfMonth : undefined,
+          endType,
+          endDate: endType === "date" ? endDate : null,
+          endCount: endType === "count" ? endCount : null,
+        };
+      }
+
       await createReminder({
         organizationId: admin.organizationId,
         title: formData.title,
         description: formData.description || null,
         eventDate: formData.eventDate,
         notificationDaysBefore: formData.notificationDaysBefore,
+        notificationTimings,
+        isRecurring,
+        recurringPattern,
+        parentReminderId: null,
         isCompleted: false,
         completedAt: null,
       });
 
+      // Reset form
       setFormData({ title: "", description: "", eventDate: "", notificationDaysBefore: 7 });
+      setIsRecurring(false);
+      setRecurringFrequency("monthly");
+      setRecurringInterval(1);
+      setDaysOfWeek([]);
+      setDayOfMonth(1);
+      setEndType("never");
+      setEndDate("");
+      setEndCount(10);
+      setNotificationTimings([{ daysBefore: 7, time: "09:00" }]);
       setShowForm(false);
       await fetchReminders();
     } catch (error) {
@@ -86,11 +131,38 @@ export default function CustomRemindersPage() {
 
   const handleComplete = async (id: string) => {
     try {
-      await completeReminder(id);
+      const nextId = await completeReminderWithRecurring(id);
+      if (nextId) {
+        alert("次回のリマインダーが自動生成されました");
+      }
       await fetchReminders();
     } catch (error) {
       console.error("Error completing reminder:", error);
       alert("リマインダーの完了処理に失敗しました");
+    }
+  };
+
+  // Notification timing handlers
+  const addNotificationTiming = () => {
+    setNotificationTimings([...notificationTimings, { daysBefore: 1, time: "09:00" }]);
+  };
+
+  const removeNotificationTiming = (index: number) => {
+    setNotificationTimings(notificationTimings.filter((_, i) => i !== index));
+  };
+
+  const updateNotificationTiming = (index: number, field: keyof NotificationTiming, value: any) => {
+    const updated = [...notificationTimings];
+    updated[index] = { ...updated[index], [field]: value };
+    setNotificationTimings(updated);
+  };
+
+  // Days of week toggle
+  const toggleDayOfWeek = (day: number) => {
+    if (daysOfWeek.includes(day)) {
+      setDaysOfWeek(daysOfWeek.filter(d => d !== day));
+    } else {
+      setDaysOfWeek([...daysOfWeek, day].sort());
     }
   };
 
@@ -232,34 +304,216 @@ export default function CustomRemindersPage() {
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="notificationDaysBefore">
-                    通知タイミング <span className="text-red-500">*</span>
-                  </Label>
-                  <select
-                    id="notificationDaysBefore"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    value={formData.notificationDaysBefore}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        notificationDaysBefore: Number(e.target.value),
-                      })
-                    }
-                    disabled={submitting}
-                    required
-                  >
-                    <option value={1}>1日前</option>
-                    <option value={3}>3日前</option>
-                    <option value={7}>7日前（1週間前）</option>
-                    <option value={14}>14日前（2週間前）</option>
-                    <option value={30}>30日前（1ヶ月前）</option>
-                    <option value={60}>60日前（2ヶ月前）</option>
-                    <option value={90}>90日前（3ヶ月前）</option>
-                  </select>
-                  <p className="text-xs text-gray-500">
-                    イベントの何日前に通知を表示するか選択してください
-                  </p>
+                {/* Notification Timings */}
+                <div className="space-y-3 border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <Label>通知タイミング</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addNotificationTiming}
+                      disabled={submitting}
+                    >
+                      <Bell className="h-4 w-4 mr-1" />
+                      通知を追加
+                    </Button>
+                  </div>
+
+                  {notificationTimings.map((timing, index) => (
+                    <div key={index} className="flex items-center gap-2 p-3 bg-gray-50 rounded-md">
+                      <div className="flex-1 grid grid-cols-2 gap-2">
+                        <div>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="日数"
+                            value={timing.daysBefore}
+                            onChange={(e) =>
+                              updateNotificationTiming(index, "daysBefore", Number(e.target.value))
+                            }
+                            disabled={submitting}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">日前</p>
+                        </div>
+                        <div>
+                          <Input
+                            type="time"
+                            value={timing.time}
+                            onChange={(e) =>
+                              updateNotificationTiming(index, "time", e.target.value)
+                            }
+                            disabled={submitting}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">時刻</p>
+                        </div>
+                      </div>
+                      {notificationTimings.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeNotificationTiming(index)}
+                          disabled={submitting}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Recurring Settings */}
+                <div className="space-y-4 border-t pt-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isRecurring"
+                      checked={isRecurring}
+                      onChange={(e) => setIsRecurring(e.target.checked)}
+                      disabled={submitting}
+                    />
+                    <Label htmlFor="isRecurring" className="cursor-pointer">
+                      繰り返し設定を有効にする
+                    </Label>
+                  </div>
+
+                  {isRecurring && (
+                    <div className="space-y-4 pl-6 border-l-2 border-blue-200">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>繰り返しパターン</Label>
+                          <Select
+                            value={recurringFrequency}
+                            onChange={(e) => setRecurringFrequency(e.target.value as RecurringFrequency)}
+                            disabled={submitting}
+                          >
+                            <option value="daily">毎日</option>
+                            <option value="weekly">毎週</option>
+                            <option value="monthly">毎月</option>
+                            <option value="yearly">毎年</option>
+                            <option value="custom">カスタム（日数指定）</option>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>間隔</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={recurringInterval}
+                            onChange={(e) => setRecurringInterval(Number(e.target.value))}
+                            disabled={submitting}
+                          />
+                          <p className="text-xs text-gray-500">
+                            {recurringFrequency === "daily" && `${recurringInterval}日ごと`}
+                            {recurringFrequency === "weekly" && `${recurringInterval}週間ごと`}
+                            {recurringFrequency === "monthly" && `${recurringInterval}ヶ月ごと`}
+                            {recurringFrequency === "yearly" && `${recurringInterval}年ごと`}
+                            {recurringFrequency === "custom" && `${recurringInterval}日ごと`}
+                          </p>
+                        </div>
+                      </div>
+
+                      {recurringFrequency === "weekly" && (
+                        <div className="space-y-2">
+                          <Label>曜日指定</Label>
+                          <div className="flex gap-2">
+                            {["日", "月", "火", "水", "木", "金", "土"].map((day, index) => (
+                              <button
+                                key={index}
+                                type="button"
+                                onClick={() => toggleDayOfWeek(index)}
+                                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                                  daysOfWeek.includes(index)
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                }`}
+                                disabled={submitting}
+                              >
+                                {day}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {recurringFrequency === "monthly" && (
+                        <div className="space-y-2">
+                          <Label>日付指定</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min="-1"
+                              max="31"
+                              value={dayOfMonth}
+                              onChange={(e) => setDayOfMonth(Number(e.target.value))}
+                              disabled={submitting}
+                              className="w-24"
+                            />
+                            <span className="text-sm text-gray-600">日</span>
+                            <p className="text-xs text-gray-500">（-1 = 月末）</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        <Label>繰り返し終了条件</Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="endNever"
+                              name="endType"
+                              checked={endType === "never"}
+                              onChange={() => setEndType("never")}
+                              disabled={submitting}
+                            />
+                            <Label htmlFor="endNever" className="cursor-pointer">無期限</Label>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="endDate"
+                              name="endType"
+                              checked={endType === "date"}
+                              onChange={() => setEndType("date")}
+                              disabled={submitting}
+                            />
+                            <Label htmlFor="endDate" className="cursor-pointer">終了日指定:</Label>
+                            <Input
+                              type="date"
+                              value={endDate}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              disabled={submitting || endType !== "date"}
+                              className="w-40"
+                            />
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="endCount"
+                              name="endType"
+                              checked={endType === "count"}
+                              onChange={() => setEndType("count")}
+                              disabled={submitting}
+                            />
+                            <Label htmlFor="endCount" className="cursor-pointer">回数指定:</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={endCount}
+                              onChange={(e) => setEndCount(Number(e.target.value))}
+                              disabled={submitting || endType !== "count"}
+                              className="w-20"
+                            />
+                            <span className="text-sm text-gray-600">回</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end space-x-4">

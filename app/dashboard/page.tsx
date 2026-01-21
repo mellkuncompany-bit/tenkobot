@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,8 +13,8 @@ import { Shift, AttendanceRecord, NotificationLog, Staff, WorkTemplate, Reminder
 import { formatDateKey, formatDateTimeDisplay } from "@/lib/utils/date";
 import { getStaffs } from "@/lib/services/staff-service";
 import { getWorkTemplates } from "@/lib/services/work-template-service";
-import { getUpcomingReminders, completeReminder } from "@/lib/services/reminder-service";
-import { Users, Calendar, AlertCircle, CheckCircle, Bell } from "lucide-react";
+import { getUpcomingRemindersWithTimings, completeReminderWithRecurring } from "@/lib/services/reminder-service";
+import { Users, Calendar, AlertCircle, CheckCircle, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function DashboardPage() {
   const { admin } = useAuth();
@@ -26,23 +26,25 @@ export default function DashboardPage() {
   const [staffs, setStaffs] = useState<Staff[]>([]);
   const [workTemplates, setWorkTemplates] = useState<WorkTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateOffset, setDateOffset] = useState(0); // Offset from today for scrolling
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!admin) return;
 
     const fetchDashboardData = async () => {
       const today = formatDateKey(new Date());
-      const oneWeekLater = formatDateKey(
-        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      const thirtyDaysLater = formatDateKey(
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       );
 
-      // Fetch next 7 days' shifts
+      // Fetch next 30 days' shifts for horizontal scrolling
       try {
         const shiftsQuery = query(
           collection(db, COLLECTIONS.SHIFTS),
           where("organizationId", "==", admin.organizationId),
           where("date", ">=", today),
-          where("date", "<=", oneWeekLater)
+          where("date", "<=", thirtyDaysLater)
         );
         const shiftsSnapshot = await getDocs(shiftsQuery);
         const shifts = shiftsSnapshot.docs.map((doc) => ({
@@ -106,7 +108,7 @@ export default function DashboardPage() {
 
       // Fetch upcoming reminders (next 7 days)
       try {
-        const reminders = await getUpcomingReminders(admin.organizationId);
+        const reminders = await getUpcomingRemindersWithTimings(admin.organizationId);
         setUpcomingReminders(reminders);
         console.log('[Dashboard] Fetched reminders:', reminders.length);
       } catch (error) {
@@ -195,6 +197,29 @@ export default function DashboardPage() {
     return "-";
   };
 
+  // Generate dates for the current view (7 days starting from offset)
+  const getViewDates = () => {
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() + dateOffset + i);
+      return date;
+    });
+  };
+
+  // Navigation functions
+  const handlePreviousWeek = () => {
+    setDateOffset(prev => prev - 7);
+  };
+
+  const handleNextWeek = () => {
+    setDateOffset(prev => prev + 7);
+  };
+
+  const handleToday = () => {
+    setDateOffset(0);
+  };
+
   // Get today's date
   const today = formatDateKey(new Date());
   const todayShiftsCount = todayShifts.filter(shift => shift.date === today).length;
@@ -221,47 +246,46 @@ export default function DashboardPage() {
           <p className="text-gray-600 mt-1">本日の出勤状況を確認できます</p>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">本日の出勤予定者</CardTitle>
-              <Calendar className="h-4 w-4 text-gray-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{todayShiftsCount}</div>
-              <p className="text-xs text-muted-foreground">人</p>
-            </CardContent>
+        {/* Stats - Compact */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 mb-1">出勤予定</p>
+                <p className="text-xl font-bold">{todayShiftsCount}人</p>
+              </div>
+              <Calendar className="h-5 w-5 text-gray-400" />
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">出勤確認済</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{confirmedCount}</div>
-            </CardContent>
+          <Card className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 mb-1">確認済</p>
+                <p className="text-xl font-bold text-green-600">{confirmedCount}</p>
+              </div>
+              <CheckCircle className="h-5 w-5 text-green-500" />
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">未確認</CardTitle>
-              <AlertCircle className="h-4 w-4 text-yellow-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
-            </CardContent>
+          <Card className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 mb-1">未確認</p>
+                <p className="text-xl font-bold text-yellow-600">{pendingCount}</p>
+              </div>
+              <AlertCircle className="h-5 w-5 text-yellow-500" />
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">エスカレーション中</CardTitle>
-              <AlertCircle className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{escalatingCount}</div>
-            </CardContent>
+          <Card className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 mb-1">エスカレ中</p>
+                <p className="text-xl font-bold text-red-600">{escalatingCount}</p>
+              </div>
+              <AlertCircle className="h-5 w-5 text-red-500" />
+            </div>
           </Card>
         </div>
 
@@ -316,8 +340,10 @@ export default function DashboardPage() {
                         variant="outline"
                         onClick={async () => {
                           try {
-                            await completeReminder(reminder.id);
-                            setUpcomingReminders(upcomingReminders.filter(r => r.id !== reminder.id));
+                            await completeReminderWithRecurring(reminder.id);
+                            // Refresh reminders to show next occurrence if generated
+                            const reminders = await getUpcomingRemindersWithTimings(admin!.organizationId);
+                            setUpcomingReminders(reminders);
                           } catch (error) {
                             console.error("Error completing reminder:", error);
                           }
@@ -336,15 +362,44 @@ export default function DashboardPage() {
 
         {/* Dispatch Tables */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>配車表（今週7日間）- スタッフ: {staffs.length}名, 作業: {workTemplates.length}件</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push("/dispatch")}
-            >
-              詳細を見る
-            </Button>
+          <CardHeader className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+            <CardTitle className="text-base sm:text-lg">
+              配車表 - スタッフ: {staffs.length}名, 作業: {workTemplates.length}件
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviousWeek}
+                className="h-8"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={dateOffset === 0 ? "default" : "outline"}
+                size="sm"
+                onClick={handleToday}
+                className="h-8 px-3"
+              >
+                今週
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextWeek}
+                className="h-8"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/dispatch")}
+                className="h-8"
+              >
+                詳細
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {todayShifts.length === 0 && staffs.length === 0 ? (
@@ -358,40 +413,31 @@ export default function DashboardPage() {
                     <table className="w-full border-collapse text-sm">
                       <thead className="bg-gray-50">
                         <tr className="border-b border-gray-200">
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 border-r border-gray-200 w-24">
-                            スタッフ名
+                          <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 border-r border-gray-200 w-16">
+                            名前
                           </th>
-                          <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 border-r border-gray-200 w-20">
+                          <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 border-r border-gray-200 w-12">
                             役割
                           </th>
-                          {(() => {
-                            const today = new Date();
-                            const dates = Array.from({ length: 7 }, (_, i) => {
-                              const date = new Date(today);
-                              date.setDate(today.getDate() + i);
-                              return date;
-                            });
+                          {getViewDates().map((date, index) => {
+                            const dayOfWeek = date.getDay();
+                            const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+                            const isSunday = dayOfWeek === 0;
 
-                            return dates.map((date, index) => {
-                              const dayOfWeek = date.getDay();
-                              const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
-                              const isSunday = dayOfWeek === 0;
-
-                              return (
-                                <th
-                                  key={index}
-                                  className={`px-3 py-2 text-center text-xs font-semibold border-r border-gray-200 ${
-                                    isSunday ? "text-red-600" : "text-gray-700"
-                                  }`}
-                                >
-                                  <div>
-                                    {date.getMonth() + 1}/{date.getDate()}
-                                  </div>
-                                  <div className="text-[10px]">({dayNames[dayOfWeek]})</div>
-                                </th>
-                              );
-                            });
-                          })()}
+                            return (
+                              <th
+                                key={index}
+                                className={`px-3 py-2 text-center text-xs font-semibold border-r border-gray-200 ${
+                                  isSunday ? "text-red-600" : "text-gray-700"
+                                }`}
+                              >
+                                <div>
+                                  {date.getMonth() + 1}/{date.getDate()}
+                                </div>
+                                <div className="text-[10px]">({dayNames[dayOfWeek]})</div>
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
                       <tbody>
@@ -424,12 +470,7 @@ export default function DashboardPage() {
 
                           return staffs.map((staff, rowIndex) => {
                             const dateMap = shiftsByStaff.get(staff.id) || new Map();
-                            const today = new Date();
-                            const dates = Array.from({ length: 7 }, (_, i) => {
-                              const date = new Date(today);
-                              date.setDate(today.getDate() + i);
-                              return date;
-                            });
+                            const dates = getViewDates();
 
                             return (
                               <tr
@@ -438,10 +479,10 @@ export default function DashboardPage() {
                                   rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/50"
                                 }`}
                               >
-                                <td className="px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-200">
+                                <td className="px-2 py-2 text-xs font-medium text-gray-900 border-r border-gray-200">
                                   {staff.name}
                                 </td>
-                                <td className="px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-200">
+                                <td className="px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-200">
                                   {getStaffRoleJapanese(staff.role)}
                                 </td>
                                 {dates.map((date, index) => {
@@ -452,7 +493,7 @@ export default function DashboardPage() {
                                   return (
                                     <td
                                       key={index}
-                                      className="px-3 py-2 text-xs text-center text-gray-900 border-r border-gray-200"
+                                      className="px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-200"
                                     >
                                       {assignedCourses}
                                     </td>
@@ -474,40 +515,31 @@ export default function DashboardPage() {
                     <table className="w-full border-collapse text-sm">
                       <thead className="bg-gray-50">
                         <tr className="border-b border-gray-200">
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 border-r border-gray-200 w-24">
-                            作業名
+                          <th className="px-2 py-2 text-left text-xs font-semibold text-gray-700 border-r border-gray-200 w-16">
+                            作業
                           </th>
-                          <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 border-r border-gray-200 w-20">
-                            業務開始
+                          <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 border-r border-gray-200 w-12">
+                            開始
                           </th>
-                          {(() => {
-                            const today = new Date();
-                            const dates = Array.from({ length: 7 }, (_, i) => {
-                              const date = new Date(today);
-                              date.setDate(today.getDate() + i);
-                              return date;
-                            });
+                          {getViewDates().map((date, index) => {
+                            const dayOfWeek = date.getDay();
+                            const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+                            const isSunday = dayOfWeek === 0;
 
-                            return dates.map((date, index) => {
-                              const dayOfWeek = date.getDay();
-                              const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
-                              const isSunday = dayOfWeek === 0;
-
-                              return (
-                                <th
-                                  key={index}
-                                  className={`px-3 py-2 text-center text-xs font-semibold border-r border-gray-200 ${
-                                    isSunday ? "text-red-600" : "text-gray-700"
-                                  }`}
-                                >
-                                  <div>
-                                    {date.getMonth() + 1}/{date.getDate()}
-                                  </div>
-                                  <div className="text-[10px]">({dayNames[dayOfWeek]})</div>
-                                </th>
-                              );
-                            });
-                          })()}
+                            return (
+                              <th
+                                key={index}
+                                className={`px-3 py-2 text-center text-xs font-semibold border-r border-gray-200 ${
+                                  isSunday ? "text-red-600" : "text-gray-700"
+                                }`}
+                              >
+                                <div>
+                                  {date.getMonth() + 1}/{date.getDate()}
+                                </div>
+                                <div className="text-[10px]">({dayNames[dayOfWeek]})</div>
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
                       <tbody>
@@ -531,12 +563,7 @@ export default function DashboardPage() {
                               }
                             });
 
-                            const today = new Date();
-                            const dates = Array.from({ length: 7 }, (_, i) => {
-                              const date = new Date(today);
-                              date.setDate(today.getDate() + i);
-                              return date;
-                            });
+                            const dates = getViewDates();
 
                             return (
                               <tr
@@ -545,10 +572,10 @@ export default function DashboardPage() {
                                   rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50/50"
                                 }`}
                               >
-                                <td className="px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-200">
+                                <td className="px-2 py-2 text-xs font-medium text-gray-900 border-r border-gray-200">
                                   {template.name}
                                 </td>
-                                <td className="px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-200">
+                                <td className="px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-200">
                                   {template.reportCheckTime || "-"}
                                 </td>
                                 {dates.map((date, index) => {
@@ -559,7 +586,7 @@ export default function DashboardPage() {
                                   return (
                                     <td
                                       key={index}
-                                      className="px-3 py-2 text-xs text-center text-gray-900 border-r border-gray-200"
+                                      className="px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-200"
                                     >
                                       {displayText}
                                     </td>

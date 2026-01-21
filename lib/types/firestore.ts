@@ -104,13 +104,43 @@ export interface Staff {
 // ========================================
 // Reminder
 // ========================================
+// Recurring pattern types
+export type RecurringFrequency = "daily" | "weekly" | "monthly" | "yearly" | "custom";
+export type RecurringEndType = "never" | "date" | "count";
+
+export interface RecurringPattern {
+  frequency: RecurringFrequency;
+  interval: number; // 間隔（例: 2 = 2日ごと、3 = 3週間ごと）
+  daysOfWeek?: number[]; // 週の場合の曜日（0-6: 日-土）
+  dayOfMonth?: number; // 月の場合の日付（1-31、-1 = 月末）
+  endType: RecurringEndType;
+  endDate?: string | null; // YYYY-MM-DD
+  endCount?: number | null; // 繰り返し回数
+}
+
+export interface NotificationTiming {
+  daysBefore: number; // 何日前
+  time: string; // HH:mm形式（例: "09:00"）
+}
+
 export interface Reminder {
   id: string;
   organizationId: string;
   title: string;
   description: string | null;
   eventDate: string; // YYYY-MM-DD format - イベントがある日付
+
+  // 旧フィールド（後方互換性のため残す）
   notificationDaysBefore: number; // 何日前に通知するか (例: 1, 3, 7, 14, 30)
+
+  // 新フィールド：複数通知タイミング
+  notificationTimings: NotificationTiming[]; // 複数の通知タイミング
+
+  // 繰り返し設定
+  isRecurring: boolean;
+  recurringPattern: RecurringPattern | null;
+  parentReminderId: string | null; // 繰り返しで生成された場合、元のID
+
   isCompleted: boolean;
   completedAt: Timestamp | null;
   createdAt: Timestamp;

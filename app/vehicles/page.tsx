@@ -16,30 +16,45 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/hooks/use-auth";
 import { getVehicles, deleteVehicle } from "@/lib/services/vehicle-service";
-import { Vehicle } from "@/lib/types/firestore";
-import { Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { getFuelReceipts, generateFuelReport } from "@/lib/services/fuel-receipt-service";
+import { Vehicle, FuelReceipt } from "@/lib/types/firestore";
+import { Plus, Pencil, Trash2, AlertTriangle, TrendingUp } from "lucide-react";
+import { Select } from "@/components/ui/select";
 
 export default function VehiclesPage() {
   const { admin } = useAuth();
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fuelReceipts, setFuelReceipts] = useState<FuelReceipt[]>([]);
+  const [monthlyReport, setMonthlyReport] = useState<any>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<string>("all");
 
   useEffect(() => {
     if (!admin) return;
 
-    const fetchVehicles = async () => {
+    const fetchData = async () => {
       try {
-        const data = await getVehicles(admin.organizationId);
-        setVehicles(data);
+        const [vehiclesData, receiptsData] = await Promise.all([
+          getVehicles(admin.organizationId),
+          getFuelReceipts(admin.organizationId),
+        ]);
+        setVehicles(vehiclesData);
+        setFuelReceipts(receiptsData);
+
+        // Generate current month report
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const report = await generateFuelReport(admin.organizationId, month);
+        setMonthlyReport(report);
       } catch (error) {
-        console.error("Error fetching vehicles:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchVehicles();
+    fetchData();
   }, [admin]);
 
   const handleDelete = async (vehicleId: string) => {
@@ -67,6 +82,15 @@ export default function VehiclesPage() {
     const inspectionDate = date.toDate();
     return inspectionDate < new Date();
   };
+
+  const getVehicleName = (vehicleId: string) => {
+    const vehicle = vehicles.find((v) => v.id === vehicleId);
+    return vehicle?.name || "不明";
+  };
+
+  const filteredReceipts = selectedVehicle === "all"
+    ? fuelReceipts
+    : fuelReceipts.filter((r) => r.vehicleId === selectedVehicle);
 
   if (loading) {
     return (
@@ -178,21 +202,127 @@ export default function VehiclesPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>ガソリン管理</CardTitle>
-              <Button onClick={() => router.push("/fuel")}>
-                詳細を見る
-              </Button>
+        {/* Fuel Management Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-gray-900">ガソリン管理</h2>
+            <Button onClick={() => router.push("/fuel/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              レシートを追加
+            </Button>
+          </div>
+
+          {/* Monthly Report */}
+          {monthlyReport && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">
+                    今月の給油回数
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {monthlyReport.receiptCount}回
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">
+                    今月の給油量
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {monthlyReport.totalLiters.toFixed(1)}L
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600">
+                    今月の燃料費
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    ¥{monthlyReport.totalCost.toLocaleString()}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">
-              ガソリンレシートの管理と燃費レポートは「ガソリン管理」ページで確認できます。
-            </p>
-          </CardContent>
-        </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>レシート一覧 ({filteredReceipts.length}件)</CardTitle>
+                <div className="flex items-center space-x-2">
+                  <Select
+                    value={selectedVehicle}
+                    onChange={(e) => setSelectedVehicle(e.target.value)}
+                  >
+                    <option value="all">すべての車両</option>
+                    {vehicles.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicle.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {filteredReceipts.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 mb-4">レシートがありません</p>
+                  <Button onClick={() => router.push("/fuel/new")}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    最初のレシートを登録
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>日付</TableHead>
+                      <TableHead>車両</TableHead>
+                      <TableHead>給油量</TableHead>
+                      <TableHead>金額</TableHead>
+                      <TableHead>走行距離</TableHead>
+                      <TableHead className="text-right">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredReceipts.map((receipt) => (
+                      <TableRow key={receipt.id}>
+                        <TableCell>{receipt.date}</TableCell>
+                        <TableCell>{getVehicleName(receipt.vehicleId)}</TableCell>
+                        <TableCell>{receipt.liters}L</TableCell>
+                        <TableCell>¥{receipt.amount.toLocaleString()}</TableCell>
+                        <TableCell>{receipt.odometerReading ? `${receipt.odometerReading}km` : "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => router.push(`/fuel/${receipt.id}`)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </DashboardLayout>
   );

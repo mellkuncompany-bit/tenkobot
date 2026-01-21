@@ -13,7 +13,7 @@ import { getShifts, generateRecurringShifts } from "@/lib/services/shift-service
 import { getStaffs } from "@/lib/services/staff-service";
 import { getWorkTemplates } from "@/lib/services/work-template-service";
 import { Shift, Staff, WorkTemplate } from "@/lib/types/firestore";
-import { ChevronLeft, ChevronRight, Plus, Wand2, Filter, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Wand2, Filter, Pencil, X, Move } from "lucide-react";
 
 // Helper function to get week dates (Sunday to Saturday)
 function getWeekDates(date: Date): Date[] {
@@ -76,6 +76,18 @@ export default function DispatchTablePage() {
   // Touch swipe state
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  // Long press and context menu state
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    show: boolean;
+    x: number;
+    y: number;
+    staffId: string;
+    date: string;
+    shifts: Shift[];
+  } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const weekDates = getWeekDates(currentWeekStart);
 
@@ -170,6 +182,78 @@ export default function DispatchTablePage() {
     }
     if (isRightSwipe) {
       scrollLeft();
+    }
+  };
+
+  // Long press handlers for drag & drop
+  const handleCellTouchStart = (e: React.TouchEvent, staffId: string, date: string, dayShifts: Shift[]) => {
+    if (dayShifts.length === 0) return; // Only allow long press on cells with shifts
+
+    const touch = e.touches[0];
+    const timer = setTimeout(() => {
+      // Show context menu after 500ms long press
+      setContextMenu({
+        show: true,
+        x: touch.clientX,
+        y: touch.clientY,
+        staffId,
+        date,
+        shifts: dayShifts,
+      });
+      setIsDragging(true);
+    }, 500);
+
+    setLongPressTimer(timer);
+  };
+
+  const handleCellTouchEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  const handleCellTouchMove = () => {
+    // Cancel long press if user moves finger
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  // Close context menu
+  const closeContextMenu = () => {
+    setContextMenu(null);
+    setIsDragging(false);
+  };
+
+  // Mark shifts as "no delivery"
+  const handleMarkAsNoDelivery = async () => {
+    if (!contextMenu || !admin) return;
+
+    try {
+      // In a real implementation, you would update the shifts in Firestore
+      // For now, just close the menu
+      console.log("Marking as no delivery:", contextMenu.shifts.map(s => s.id));
+      closeContextMenu();
+      await fetchData(); // Refresh data
+    } catch (error) {
+      console.error("Error marking as no delivery:", error);
+    }
+  };
+
+  // Move shifts to another staff
+  const handleMoveToStaff = async (targetStaffId: string) => {
+    if (!contextMenu || !admin) return;
+
+    try {
+      // In a real implementation, you would update the shifts in Firestore
+      // to reassign them to the target staff
+      console.log("Moving shifts to staff:", targetStaffId, contextMenu.shifts.map(s => s.id));
+      closeContextMenu();
+      await fetchData(); // Refresh data
+    } catch (error) {
+      console.error("Error moving shifts:", error);
     }
   };
 
@@ -609,13 +693,13 @@ export default function DispatchTablePage() {
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
-                    <th className="sticky left-0 z-20 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-300 w-[100px]">
-                      スタッフ名
+                    <th className="sticky left-0 z-20 bg-white px-2 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
+                      名前
                     </th>
-                    <th className="sticky left-[100px] z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-24">
+                    <th className="sticky left-16 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-12">
                       役割
                     </th>
-                    <th className="sticky left-[196px] z-20 bg-white px-4 py-3 text-center text-sm font-semibold text-gray-900 border-r border-gray-300 w-[100px]">
+                    <th className="sticky left-28 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -651,13 +735,13 @@ export default function DispatchTablePage() {
                           rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
                         }`}
                       >
-                        <td className="sticky left-0 z-10 bg-inherit px-4 py-3 text-sm font-medium text-gray-900 border-r border-gray-300 w-[100px]">
+                        <td className="sticky left-0 z-10 bg-inherit px-2 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 w-16">
                           {staff.name}
                         </td>
-                        <td className="sticky left-[100px] z-10 bg-inherit px-2 py-3 text-xs text-center text-gray-600 border-r border-gray-300 w-24">
+                        <td className="sticky left-16 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-12">
                           {getStaffRoleJapanese(staff.role)}
                         </td>
-                        <td className="sticky left-[196px] z-10 bg-inherit px-4 py-3 text-sm text-center text-gray-600 border-r border-gray-300 w-[100px]">
+                        <td className="sticky left-28 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
@@ -669,12 +753,15 @@ export default function DispatchTablePage() {
                           return (
                             <td
                               key={index}
-                              className="px-4 py-3 text-sm text-center text-gray-900 border-r border-gray-300 cursor-pointer hover:bg-blue-50 transition-colors"
+                              className="px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-300 cursor-pointer hover:bg-blue-50 transition-colors"
                               onClick={() => handleCellClick(dateKey, dayShifts)}
-                              title={dayShifts.length > 0 ? "クリックして編集" : undefined}
+                              onTouchStart={(e) => handleCellTouchStart(e, staff.id, dateKey, dayShifts)}
+                              onTouchEnd={handleCellTouchEnd}
+                              onTouchMove={handleCellTouchMove}
+                              title={dayShifts.length > 0 ? "長押しでメニュー表示" : undefined}
                             >
                               <div className="flex flex-col items-center justify-center gap-1">
-                                <div className="text-xs text-gray-500">{assignedCourses}</div>
+                                <div className="text-[11px] text-gray-700">{assignedCourses}</div>
                                 {dayShifts.length > 0 && (
                                   <Pencil className="h-3 w-3 text-gray-400" />
                                 )}
@@ -720,13 +807,13 @@ export default function DispatchTablePage() {
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
-                    <th className="sticky left-0 z-20 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-900 border-r border-gray-300 w-[100px]">
-                      作業名
+                    <th className="sticky left-0 z-20 bg-white px-2 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
+                      作業
                     </th>
-                    <th className="sticky left-[100px] z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-24">
-                      業務開始
+                    <th className="sticky left-16 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-12">
+                      開始
                     </th>
-                    <th className="sticky left-[196px] z-20 bg-white px-4 py-3 text-center text-sm font-semibold text-gray-900 border-r border-gray-300 w-[100px]">
+                    <th className="sticky left-28 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -764,13 +851,13 @@ export default function DispatchTablePage() {
                           rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
                         }`}
                       >
-                        <td className="sticky left-0 z-10 bg-inherit px-4 py-3 text-sm font-medium text-gray-900 border-r border-gray-300 w-[100px]">
+                        <td className="sticky left-0 z-10 bg-inherit px-2 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 w-16">
                           {templateName}
                         </td>
-                        <td className="sticky left-[100px] z-10 bg-inherit px-2 py-3 text-xs text-center text-gray-600 border-r border-gray-300 w-24">
+                        <td className="sticky left-16 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-12">
                           {template?.reportCheckTime || "-"}
                         </td>
-                        <td className="sticky left-[196px] z-10 bg-inherit px-4 py-3 text-sm text-center text-gray-600 border-r border-gray-300 w-[100px]">
+                        <td className="sticky left-28 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
@@ -781,7 +868,7 @@ export default function DispatchTablePage() {
                           return (
                             <td
                               key={index}
-                              className="px-4 py-3 text-sm text-center text-gray-900 border-r border-gray-300 cursor-pointer hover:bg-blue-50 transition-colors"
+                              className="px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-300 cursor-pointer hover:bg-blue-50 transition-colors"
                               onClick={() => handleCellClick(dateKey, dayShifts)}
                               title={dayShifts.length > 0 ? "クリックして編集" : undefined}
                             >
@@ -831,6 +918,63 @@ export default function DispatchTablePage() {
             <p>• 日曜日と祝日は赤字で表示されます</p>
           </CardContent>
         </Card>
+
+        {/* Context Menu for Drag & Drop */}
+        {contextMenu && contextMenu.show && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black bg-opacity-30 z-40"
+              onClick={closeContextMenu}
+            />
+            {/* Menu */}
+            <div
+              className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-2 min-w-[200px]"
+              style={{
+                left: Math.min(contextMenu.x, window.innerWidth - 220),
+                top: Math.min(contextMenu.y, window.innerHeight - 300),
+              }}
+            >
+              <div className="flex items-center justify-between mb-2 pb-2 border-b">
+                <h3 className="text-sm font-semibold text-gray-900">配車操作</h3>
+                <button
+                  onClick={closeContextMenu}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Mark as no delivery option */}
+              <button
+                onClick={handleMarkAsNoDelivery}
+                className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded flex items-center gap-2"
+              >
+                <X className="h-4 w-4" />
+                配送無しにする
+              </button>
+
+              {/* Move to another staff */}
+              <div className="mt-2 pt-2 border-t">
+                <p className="text-xs text-gray-500 px-3 mb-1">他のスタッフに移動:</p>
+                <div className="max-h-40 overflow-y-auto">
+                  {staffs
+                    .filter(s => s.id !== contextMenu.staffId)
+                    .map(staff => (
+                      <button
+                        key={staff.id}
+                        onClick={() => handleMoveToStaff(staff.id)}
+                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded flex items-center gap-2"
+                      >
+                        <Move className="h-4 w-4" />
+                        {staff.name}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );
