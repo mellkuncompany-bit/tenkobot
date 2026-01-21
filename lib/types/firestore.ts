@@ -111,7 +111,8 @@ export interface Reminder {
   organizationId: string;
   title: string;
   description: string | null;
-  dueDate: string; // YYYY-MM-DD format
+  eventDate: string; // YYYY-MM-DD format - イベントがある日付
+  notificationDaysBefore: number; // 何日前に通知するか (例: 1, 3, 7, 14, 30)
   isCompleted: boolean;
   completedAt: Timestamp | null;
   createdAt: Timestamp;

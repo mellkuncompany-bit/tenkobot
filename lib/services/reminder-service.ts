@@ -22,7 +22,7 @@ export async function getReminders(organizationId: string): Promise<Reminder[]> 
   const q = query(
     collection(db, COLLECTIONS.REMINDERS),
     where("organizationId", "==", organizationId),
-    orderBy("dueDate", "asc")
+    orderBy("eventDate", "asc")
   );
 
   const snapshot = await getDocs(q);
@@ -35,26 +35,36 @@ export async function getReminders(organizationId: string): Promise<Reminder[]> 
 }
 
 /**
- * Get upcoming reminders (within 7 days)
+ * Get upcoming reminders (within 7 days) - shows reminders where notification date is today or later and event hasn't passed
  */
 export async function getUpcomingReminders(organizationId: string): Promise<Reminder[]> {
   const today = new Date().toISOString().split('T')[0];
-  const oneWeekLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   const q = query(
     collection(db, COLLECTIONS.REMINDERS),
     where("organizationId", "==", organizationId),
     where("isCompleted", "==", false),
-    where("dueDate", ">=", today),
-    where("dueDate", "<=", oneWeekLater),
-    orderBy("dueDate", "asc")
+    where("eventDate", ">=", today),
+    orderBy("eventDate", "asc")
   );
 
   const snapshot = await getDocs(q);
-  const reminders = snapshot.docs.map((doc) => ({
+  let reminders = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
   })) as Reminder[];
+
+  // Filter reminders where notification date is within 7 days from today
+  const todayTime = new Date(today).getTime();
+  const oneWeekLater = todayTime + 7 * 24 * 60 * 60 * 1000;
+
+  reminders = reminders.filter((reminder) => {
+    const eventTime = new Date(reminder.eventDate).getTime();
+    const notificationTime = eventTime - (reminder.notificationDaysBefore * 24 * 60 * 60 * 1000);
+
+    // Show if notification date is today or within the next 7 days, and event hasn't passed
+    return notificationTime <= oneWeekLater && eventTime >= todayTime;
+  });
 
   return reminders;
 }

@@ -36,7 +36,8 @@ export default function CustomRemindersPage() {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    dueDate: "",
+    eventDate: "",
+    notificationDaysBefore: 7, // Default to 7 days before
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,12 +67,13 @@ export default function CustomRemindersPage() {
         organizationId: admin.organizationId,
         title: formData.title,
         description: formData.description || null,
-        dueDate: formData.dueDate,
+        eventDate: formData.eventDate,
+        notificationDaysBefore: formData.notificationDaysBefore,
         isCompleted: false,
         completedAt: null,
       });
 
-      setFormData({ title: "", description: "", dueDate: "" });
+      setFormData({ title: "", description: "", eventDate: "", notificationDaysBefore: 7 });
       setShowForm(false);
       await fetchReminders();
     } catch (error) {
@@ -104,13 +106,20 @@ export default function CustomRemindersPage() {
     }
   };
 
-  const getDaysUntilDue = (dueDate: string) => {
-    const due = new Date(dueDate);
+  const getDaysUntilEvent = (eventDate: string) => {
+    const event = new Date(eventDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const diffTime = due.getTime() - today.getTime();
+    const diffTime = event.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
+  };
+
+  const getNotificationDate = (eventDate: string, daysBefore: number) => {
+    const event = new Date(eventDate);
+    const notification = new Date(event);
+    notification.setDate(notification.getDate() - daysBefore);
+    return notification;
   };
 
   const getUrgencyBadge = (daysLeft: number, isCompleted: boolean) => {
@@ -205,19 +214,52 @@ export default function CustomRemindersPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="dueDate">
-                    期限 <span className="text-red-500">*</span>
+                  <Label htmlFor="eventDate">
+                    イベント日付 <span className="text-red-500">*</span>
                   </Label>
                   <Input
-                    id="dueDate"
+                    id="eventDate"
                     type="date"
-                    value={formData.dueDate}
+                    value={formData.eventDate}
                     onChange={(e) =>
-                      setFormData({ ...formData, dueDate: e.target.value })
+                      setFormData({ ...formData, eventDate: e.target.value })
                     }
                     disabled={submitting}
                     required
                   />
+                  <p className="text-xs text-gray-500">
+                    イベントが実際に発生する日付を選択してください
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notificationDaysBefore">
+                    通知タイミング <span className="text-red-500">*</span>
+                  </Label>
+                  <select
+                    id="notificationDaysBefore"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={formData.notificationDaysBefore}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        notificationDaysBefore: Number(e.target.value),
+                      })
+                    }
+                    disabled={submitting}
+                    required
+                  >
+                    <option value={1}>1日前</option>
+                    <option value={3}>3日前</option>
+                    <option value={7}>7日前（1週間前）</option>
+                    <option value={14}>14日前（2週間前）</option>
+                    <option value={30}>30日前（1ヶ月前）</option>
+                    <option value={60}>60日前（2ヶ月前）</option>
+                    <option value={90}>90日前（3ヶ月前）</option>
+                  </select>
+                  <p className="text-xs text-gray-500">
+                    イベントの何日前に通知を表示するか選択してください
+                  </p>
                 </div>
 
                 <div className="flex justify-end space-x-4">
@@ -254,7 +296,8 @@ export default function CustomRemindersPage() {
                   <TableRow>
                     <TableHead>タイトル</TableHead>
                     <TableHead>説明</TableHead>
-                    <TableHead>期限</TableHead>
+                    <TableHead>イベント日</TableHead>
+                    <TableHead>通知日</TableHead>
                     <TableHead>残り日数</TableHead>
                     <TableHead>状態</TableHead>
                     <TableHead>操作</TableHead>
@@ -262,7 +305,17 @@ export default function CustomRemindersPage() {
                 </TableHeader>
                 <TableBody>
                   {activeReminders.map((reminder) => {
-                    const daysLeft = getDaysUntilDue(reminder.dueDate);
+                    const daysUntilEvent = getDaysUntilEvent(reminder.eventDate);
+                    const notificationDate = getNotificationDate(
+                      reminder.eventDate,
+                      reminder.notificationDaysBefore
+                    );
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const daysUntilNotification = Math.ceil(
+                      (notificationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+                    );
+
                     return (
                       <TableRow key={reminder.id}>
                         <TableCell className="font-medium">
@@ -272,23 +325,29 @@ export default function CustomRemindersPage() {
                           {reminder.description || "-"}
                         </TableCell>
                         <TableCell>
-                          {new Date(reminder.dueDate).toLocaleDateString("ja-JP")}
+                          {new Date(reminder.eventDate).toLocaleDateString("ja-JP")}
                         </TableCell>
                         <TableCell>
-                          {daysLeft < 0 ? (
+                          {notificationDate.toLocaleDateString("ja-JP")}
+                          <div className="text-xs text-gray-500">
+                            ({reminder.notificationDaysBefore}日前)
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {daysUntilEvent < 0 ? (
                             <span className="text-red-600 font-bold">
-                              {Math.abs(daysLeft)}日超過
+                              {Math.abs(daysUntilEvent)}日経過
                             </span>
-                          ) : daysLeft === 0 ? (
+                          ) : daysUntilEvent === 0 ? (
                             <span className="text-red-600 font-bold">今日</span>
                           ) : (
-                            <span className={daysLeft <= 3 ? "text-orange-600 font-bold" : ""}>
-                              あと{daysLeft}日
+                            <span className={daysUntilEvent <= 3 ? "text-orange-600 font-bold" : ""}>
+                              あと{daysUntilEvent}日
                             </span>
                           )}
                         </TableCell>
                         <TableCell>
-                          {getUrgencyBadge(daysLeft, reminder.isCompleted)}
+                          {getUrgencyBadge(daysUntilNotification, reminder.isCompleted)}
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
@@ -330,7 +389,7 @@ export default function CustomRemindersPage() {
                   <TableRow>
                     <TableHead>タイトル</TableHead>
                     <TableHead>説明</TableHead>
-                    <TableHead>期限</TableHead>
+                    <TableHead>イベント日</TableHead>
                     <TableHead>完了日</TableHead>
                     <TableHead>操作</TableHead>
                   </TableRow>
@@ -345,7 +404,7 @@ export default function CustomRemindersPage() {
                         {reminder.description || "-"}
                       </TableCell>
                       <TableCell>
-                        {new Date(reminder.dueDate).toLocaleDateString("ja-JP")}
+                        {new Date(reminder.eventDate).toLocaleDateString("ja-JP")}
                       </TableCell>
                       <TableCell>
                         {reminder.completedAt

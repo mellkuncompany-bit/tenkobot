@@ -97,6 +97,10 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [admin]);
 
+  // Get today's date
+  const today = formatDateKey(new Date());
+  const todayShiftsCount = todayShifts.filter(shift => shift.date === today).length;
+
   const confirmedCount = attendanceRecords.filter((r) => r.status === "present").length;
   const pendingCount = attendanceRecords.filter((r) => r.status === "pending").length;
   const escalatingCount = attendanceRecords.filter((r) => r.escalationStatus === "escalating").length;
@@ -123,12 +127,12 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">今週のシフト</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-600">本日の出勤予定者</CardTitle>
               <Calendar className="h-4 w-4 text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{todayShifts.length}</div>
-              <p className="text-xs text-muted-foreground">今日から7日間</p>
+              <div className="text-2xl font-bold">{todayShiftsCount}</div>
+              <p className="text-xs text-muted-foreground">人</p>
             </CardContent>
           </Card>
 
@@ -178,10 +182,10 @@ export default function DashboardPage() {
             <CardContent>
               <div className="space-y-3">
                 {upcomingReminders.map((reminder) => {
-                  const dueDate = new Date(reminder.dueDate);
+                  const eventDate = new Date(reminder.eventDate);
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
-                  const diffTime = dueDate.getTime() - today.getTime();
+                  const diffTime = eventDate.getTime() - today.getTime();
                   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
                   return (
@@ -192,7 +196,7 @@ export default function DashboardPage() {
                       <div>
                         <p className="font-medium">{reminder.title}</p>
                         <p className="text-sm text-gray-500">
-                          {new Date(reminder.dueDate).toLocaleDateString("ja-JP")} -
+                          {new Date(reminder.eventDate).toLocaleDateString("ja-JP")} -
                           {diffDays < 0 ? (
                             <span className="text-red-600 font-bold ml-1">
                               {Math.abs(diffDays)}日超過
