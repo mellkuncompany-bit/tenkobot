@@ -390,7 +390,7 @@ export default function EditStaffPage() {
                   disabled={saving}
                 />
                 <Label htmlFor="isEscalationTarget" className="cursor-pointer">
-                  エスカレーション対象にする
+                  点呼確認対象
                 </Label>
               </div>
             </CardContent>

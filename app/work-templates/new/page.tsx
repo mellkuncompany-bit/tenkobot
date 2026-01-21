@@ -112,6 +112,9 @@ export default function NewWorkTemplatePage() {
         unitPrice: 0, // 管理者専用ページで設定
         defaultDriverAssignment,
         escalationPolicyId: null, // 今後実装
+        phoneNotificationContact1: null,
+        phoneNotificationContact2: null,
+        phoneNotificationContact3: null,
         isActive: true,
       });
 

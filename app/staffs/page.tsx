@@ -127,7 +127,7 @@ export default function StaffsPage() {
                     <TableHead>役割</TableHead>
                     <TableHead>電話番号</TableHead>
                     <TableHead>LINE連携</TableHead>
-                    <TableHead>エスカレーション対象</TableHead>
+                    <TableHead>点呼確認対象</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>

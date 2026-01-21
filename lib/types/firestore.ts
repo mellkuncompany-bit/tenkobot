@@ -132,6 +132,14 @@ export interface DriverAssignment {
   contactPhone: string | null;   // Phase 2の自動架電用（任意）
 }
 
+// Phone notification contact
+export interface PhoneNotificationContact {
+  type: "staff" | "freetext";
+  staffId: string | null;        // type="staff"の場合に使用
+  phoneNumber: string | null;    // type="freetext"の場合に使用
+  notificationMethod: "sms" | "call";
+}
+
 // ========================================
 // Work Template
 // ========================================
@@ -153,6 +161,11 @@ export interface WorkTemplate {
   unitPrice: number; // Unit price for invoicing
   defaultDriverAssignment: DriverAssignment | null; // Default driver assignment
   escalationPolicyId: string | null; // エスカレーション設定
+
+  // Phone notification contacts (up to 3 people)
+  phoneNotificationContact1: PhoneNotificationContact | null;
+  phoneNotificationContact2: PhoneNotificationContact | null;
+  phoneNotificationContact3: PhoneNotificationContact | null;
 
   isActive: boolean;
   createdAt: Timestamp;

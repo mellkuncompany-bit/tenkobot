@@ -51,13 +51,6 @@ export default function NewStaffPage() {
     assignedWorkTemplateIds: [] as string[],
     assignedWorkFreetext: "",
 
-    // Payment settings
-    paymentType: "hourly" as PaymentType,
-    hourlyRate: "",
-    dailyRate: "",
-    monthlyRate: "",
-    overtimeRate: "",
-
     // Recurring schedule
     useRecurringSchedule: false,
     daysOfWeek: [] as number[],
@@ -138,20 +131,6 @@ export default function NewStaffPage() {
         ? Timestamp.fromDate(new Date(formData.licenseExpiryDate))
         : null;
 
-      // Parse payment rates
-      const hourlyRate = formData.paymentType === "hourly" && formData.hourlyRate
-        ? parseFloat(formData.hourlyRate)
-        : null;
-      const dailyRate = formData.paymentType === "daily" && formData.dailyRate
-        ? parseFloat(formData.dailyRate)
-        : null;
-      const monthlyRate = formData.paymentType === "monthly" && formData.monthlyRate
-        ? parseFloat(formData.monthlyRate)
-        : null;
-      const overtimeRate = formData.overtimeRate
-        ? parseFloat(formData.overtimeRate)
-        : null;
-
       // Build recurring schedule
       const recurringSchedule = formData.useRecurringSchedule
         ? {
@@ -185,11 +164,11 @@ export default function NewStaffPage() {
         escalation3rdStaffId: formData.escalation3rdStaffId || null,
         escalation3rdMethod: formData.escalation3rdMethod,
 
-        paymentType: formData.paymentType,
-        hourlyRate,
-        dailyRate,
-        monthlyRate,
-        overtimeRate,
+        paymentType: "hourly",
+        hourlyRate: null,
+        dailyRate: null,
+        monthlyRate: null,
+        overtimeRate: null,
 
         recurringSchedule,
         defaultStartTime: formData.defaultStartTime || null,
