@@ -631,9 +631,9 @@ export default function DispatchTablePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="filterDriver">
-                  担当ドライバー
+                  スタッフで絞り込み
                   <span className="text-xs text-gray-500 ml-2">
-                    ({staffs.filter((s) => s.role === "driver").length}人)
+                    ({staffs.length}人登録)
                   </span>
                 </Label>
                 <Select
@@ -646,16 +646,15 @@ export default function DispatchTablePage() {
                   {staffs.length === 0 && (
                     <option disabled>スタッフを読み込み中...</option>
                   )}
-                  {staffs.filter((s) => s.role === "driver").length === 0 && staffs.length > 0 && (
-                    <option disabled>ドライバーが登録されていません</option>
+                  {staffs.length > 0 && (
+                    <optgroup label="スタッフ一覧">
+                      {staffs.map((staff) => (
+                        <option key={staff.id} value={staff.id}>
+                          {staff.name} ({getStaffRoleJapanese(staff.role)})
+                        </option>
+                      ))}
+                    </optgroup>
                   )}
-                  {staffs
-                    .filter((s) => s.role === "driver")
-                    .map((driver) => (
-                      <option key={driver.id} value={driver.id}>
-                        {driver.name}
-                      </option>
-                    ))}
                 </Select>
               </div>
 
@@ -774,24 +773,27 @@ export default function DispatchTablePage() {
             </CardTitle>
           </CardHeader>
           <CardContent
-            className="p-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
-            style={{ WebkitOverflowScrolling: 'touch' }}
+            className="p-0 overflow-x-scroll overflow-y-hidden"
+            style={{
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehaviorX: 'contain'
+            }}
             ref={scrollContainerRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            <div className="min-w-full">
-              <table className="w-full border-collapse">
+            <div className="inline-block min-w-full">
+              <table className="w-max border-collapse">
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
-                    <th className="sticky left-0 z-20 bg-white px-2 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
+                    <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
                       名前
                     </th>
-                    <th className="sticky left-16 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-20">
+                    <th className="sticky left-20 z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px]">
                       役割
                     </th>
-                    <th className="sticky left-36 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
+                    <th className="sticky left-[180px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -827,13 +829,13 @@ export default function DispatchTablePage() {
                           rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
                         }`}
                       >
-                        <td className="sticky left-0 z-10 bg-inherit px-2 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 w-16">
+                        <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
                           {staff.name}
                         </td>
-                        <td className="sticky left-16 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-20 whitespace-nowrap">
+                        <td className="sticky left-20 z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap">
                           {getStaffRoleJapanese(staff.role)}
                         </td>
-                        <td className="sticky left-36 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16 whitespace-nowrap">
+                        <td className="sticky left-[180px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
@@ -889,24 +891,27 @@ export default function DispatchTablePage() {
             </CardTitle>
           </CardHeader>
           <CardContent
-            className="p-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
-            style={{ WebkitOverflowScrolling: 'touch' }}
+            className="p-0 overflow-x-scroll overflow-y-hidden"
+            style={{
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehaviorX: 'contain'
+            }}
             ref={workTableRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            <div className="min-w-full">
-              <table className="w-full border-collapse">
+            <div className="inline-block min-w-full">
+              <table className="w-max border-collapse">
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
-                    <th className="sticky left-0 z-20 bg-white px-2 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 w-32">
+                    <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[150px]">
                       作業
                     </th>
-                    <th className="sticky left-32 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
+                    <th className="sticky left-[150px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
                       開始
                     </th>
-                    <th className="sticky left-48 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
+                    <th className="sticky left-[230px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -944,13 +949,13 @@ export default function DispatchTablePage() {
                           rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
                         }`}
                       >
-                        <td className="sticky left-0 z-10 bg-inherit px-2 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 w-32 whitespace-nowrap overflow-hidden text-ellipsis">
+                        <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[150px] whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]" title={templateName}>
                           {templateName}
                         </td>
-                        <td className="sticky left-32 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16 whitespace-nowrap">
+                        <td className="sticky left-[150px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
                           {template?.reportCheckTime || "-"}
                         </td>
-                        <td className="sticky left-48 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16 whitespace-nowrap">
+                        <td className="sticky left-[230px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
