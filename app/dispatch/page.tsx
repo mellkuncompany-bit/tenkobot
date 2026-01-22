@@ -68,6 +68,9 @@ export default function DispatchTablePage() {
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ created: number; skipped: number } | null>(null);
 
+  // View mode: 'week' or 'month'
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+
   // Horizontal scroll state - start offset (in days from Sunday)
   const [scrollOffset, setScrollOffset] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -91,20 +94,33 @@ export default function DispatchTablePage() {
 
   const weekDates = getWeekDates(currentWeekStart);
 
-  // Generate continuous date range for scrolling (7 days visible at a time)
+  // Generate date range based on view mode
   const visibleDates = useMemo(() => {
     const dates: Date[] = [];
-    const startDate = new Date(weekDates[0]);
-    startDate.setDate(startDate.getDate() + scrollOffset);
 
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      dates.push(date);
+    if (viewMode === 'week') {
+      // Week view: 7 days with scroll offset
+      const startDate = new Date(weekDates[0]);
+      startDate.setDate(startDate.getDate() + scrollOffset);
+
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        dates.push(date);
+      }
+    } else {
+      // Month view: all days in the current month
+      const year = currentWeekStart.getFullYear();
+      const month = currentWeekStart.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        dates.push(new Date(year, month, day));
+      }
     }
 
     return dates;
-  }, [weekDates, scrollOffset]);
+  }, [weekDates, scrollOffset, viewMode, currentWeekStart]);
 
   const fetchData = async () => {
     if (!admin) return;
@@ -515,28 +531,92 @@ export default function DispatchTablePage() {
           </div>
         </div>
 
-        {/* Week Navigation with Scroll Controls */}
+        {/* View Mode Toggle */}
+        <div className="flex justify-center gap-2 mb-4">
+          <Button
+            variant={viewMode === 'week' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setViewMode('week');
+              setScrollOffset(0);
+            }}
+          >
+            週表示
+          </Button>
+          <Button
+            variant={viewMode === 'month' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setViewMode('month');
+              setScrollOffset(0);
+            }}
+          >
+            1ヶ月表示
+          </Button>
+        </div>
+
+        {/* Navigation Controls */}
         <div className="flex justify-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            前週
-          </Button>
-          <Button variant="outline" size="sm" onClick={goToThisWeek}>
-            今週
-          </Button>
-          <Button variant="outline" size="sm" onClick={goToNextWeek}>
-            次週
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-          <div className="border-l border-gray-300 mx-2"></div>
-          <Button variant="outline" size="sm" onClick={scrollLeft} disabled={scrollOffset <= -60}>
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            前日
-          </Button>
-          <Button variant="outline" size="sm" onClick={scrollRight} disabled={scrollOffset >= 60}>
-            次日
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+          {viewMode === 'week' ? (
+            <>
+              <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                前週
+              </Button>
+              <Button variant="outline" size="sm" onClick={goToThisWeek}>
+                今週
+              </Button>
+              <Button variant="outline" size="sm" onClick={goToNextWeek}>
+                次週
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+              <div className="border-l border-gray-300 mx-2"></div>
+              <Button variant="outline" size="sm" onClick={scrollLeft} disabled={scrollOffset <= -60}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                前日
+              </Button>
+              <Button variant="outline" size="sm" onClick={scrollRight} disabled={scrollOffset >= 60}>
+                次日
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newDate = new Date(currentWeekStart);
+                  newDate.setMonth(newDate.getMonth() - 1);
+                  setCurrentWeekStart(newDate);
+                }}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                前月
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCurrentWeekStart(new Date());
+                }}
+              >
+                今月
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newDate = new Date(currentWeekStart);
+                  newDate.setMonth(newDate.getMonth() + 1);
+                  setCurrentWeekStart(newDate);
+                }}
+              >
+                次月
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Filters */}
@@ -550,14 +630,25 @@ export default function DispatchTablePage() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="filterDriver">担当ドライバー</Label>
+                <Label htmlFor="filterDriver">
+                  担当ドライバー
+                  <span className="text-xs text-gray-500 ml-2">
+                    ({staffs.filter((s) => s.role === "driver").length}人)
+                  </span>
+                </Label>
                 <Select
                   id="filterDriver"
                   value={filterDriver}
                   onChange={(e) => setFilterDriver(e.target.value)}
                 >
-                  <option value="">すべて</option>
-                  <option value="unassigned">未定</option>
+                  <option value="">すべて表示</option>
+                  <option value="unassigned">未定のみ</option>
+                  {staffs.length === 0 && (
+                    <option disabled>スタッフを読み込み中...</option>
+                  )}
+                  {staffs.filter((s) => s.role === "driver").length === 0 && staffs.length > 0 && (
+                    <option disabled>ドライバーが登録されていません</option>
+                  )}
                   {staffs
                     .filter((s) => s.role === "driver")
                     .map((driver) => (
@@ -683,7 +774,8 @@ export default function DispatchTablePage() {
             </CardTitle>
           </CardHeader>
           <CardContent
-            className="p-0 overflow-x-auto"
+            className="p-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+            style={{ WebkitOverflowScrolling: 'touch' }}
             ref={scrollContainerRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -797,7 +889,8 @@ export default function DispatchTablePage() {
             </CardTitle>
           </CardHeader>
           <CardContent
-            className="p-0 overflow-x-auto"
+            className="p-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+            style={{ WebkitOverflowScrolling: 'touch' }}
             ref={workTableRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
