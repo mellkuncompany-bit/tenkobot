@@ -788,10 +788,10 @@ export default function DispatchTablePage() {
                     <th className="sticky left-0 z-20 bg-white px-2 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
                       名前
                     </th>
-                    <th className="sticky left-16 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-12">
+                    <th className="sticky left-16 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-20">
                       役割
                     </th>
-                    <th className="sticky left-28 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
+                    <th className="sticky left-36 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -830,10 +830,10 @@ export default function DispatchTablePage() {
                         <td className="sticky left-0 z-10 bg-inherit px-2 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 w-16">
                           {staff.name}
                         </td>
-                        <td className="sticky left-16 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-12">
+                        <td className="sticky left-16 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-20 whitespace-nowrap">
                           {getStaffRoleJapanese(staff.role)}
                         </td>
-                        <td className="sticky left-28 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16">
+                        <td className="sticky left-36 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16 whitespace-nowrap">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
@@ -900,13 +900,13 @@ export default function DispatchTablePage() {
               <table className="w-full border-collapse">
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
-                    <th className="sticky left-0 z-20 bg-white px-2 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
+                    <th className="sticky left-0 z-20 bg-white px-2 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 w-32">
                       作業
                     </th>
-                    <th className="sticky left-16 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-12">
+                    <th className="sticky left-32 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
                       開始
                     </th>
-                    <th className="sticky left-28 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
+                    <th className="sticky left-48 z-20 bg-white px-2 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 w-16">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -944,13 +944,13 @@ export default function DispatchTablePage() {
                           rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
                         }`}
                       >
-                        <td className="sticky left-0 z-10 bg-inherit px-2 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 w-16">
+                        <td className="sticky left-0 z-10 bg-inherit px-2 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 w-32 whitespace-nowrap overflow-hidden text-ellipsis">
                           {templateName}
                         </td>
-                        <td className="sticky left-16 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-12">
+                        <td className="sticky left-32 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16 whitespace-nowrap">
                           {template?.reportCheckTime || "-"}
                         </td>
-                        <td className="sticky left-28 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16">
+                        <td className="sticky left-48 z-10 bg-inherit px-2 py-2 text-xs text-center text-gray-600 border-r border-gray-300 w-16 whitespace-nowrap">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
