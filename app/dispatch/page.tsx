@@ -364,6 +364,14 @@ export default function DispatchTablePage() {
     return map;
   }, [visibleShifts, staffs]);
 
+  // Filter staffs based on filterDriver
+  const visibleStaffs = useMemo(() => {
+    if (!filterDriver) {
+      return staffs;
+    }
+    return staffs.filter(staff => staff.id === filterDriver);
+  }, [staffs, filterDriver]);
+
   // Section B: Group shifts by work template
   const shiftsByTemplate = useMemo(() => {
     const map = new Map<string, Map<string, Shift[]>>();
@@ -773,18 +781,18 @@ export default function DispatchTablePage() {
             </CardTitle>
           </CardHeader>
           <CardContent
-            className="p-0 overflow-x-scroll overflow-y-hidden"
+            className="p-0 overflow-x-scroll overflow-y-hidden max-w-full"
             style={{
               WebkitOverflowScrolling: 'touch',
-              overscrollBehaviorX: 'contain'
+              overscrollBehaviorX: 'contain',
+              maxWidth: '100vw'
             }}
             ref={scrollContainerRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            <div className="inline-block min-w-full">
-              <table className="w-max border-collapse">
+            <table className="border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
                     <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
@@ -805,7 +813,7 @@ export default function DispatchTablePage() {
                       return (
                         <th
                           key={index}
-                          className={`px-4 py-3 text-center text-sm font-semibold border-r border-gray-300 ${
+                          className={`px-4 py-3 text-center text-sm font-semibold border-r border-gray-300 min-w-[120px] ${
                             isRed ? "text-red-600" : "text-gray-900"
                           }`}
                         >
@@ -819,7 +827,7 @@ export default function DispatchTablePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {staffs.map((staff, rowIndex) => {
+                  {visibleStaffs.map((staff, rowIndex) => {
                     const dateMap = shiftsByStaff.get(staff.id) || new Map();
 
                     return (
@@ -874,7 +882,6 @@ export default function DispatchTablePage() {
                   スタッフが登録されていません
                 </div>
               )}
-            </div>
           </CardContent>
         </Card>
 
@@ -891,18 +898,18 @@ export default function DispatchTablePage() {
             </CardTitle>
           </CardHeader>
           <CardContent
-            className="p-0 overflow-x-scroll overflow-y-hidden"
+            className="p-0 overflow-x-scroll overflow-y-hidden max-w-full"
             style={{
               WebkitOverflowScrolling: 'touch',
-              overscrollBehaviorX: 'contain'
+              overscrollBehaviorX: 'contain',
+              maxWidth: '100vw'
             }}
             ref={workTableRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            <div className="inline-block min-w-full">
-              <table className="w-max border-collapse">
+            <table className="border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
                     <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[150px]">
@@ -923,7 +930,7 @@ export default function DispatchTablePage() {
                       return (
                         <th
                           key={index}
-                          className={`px-4 py-3 text-center text-sm font-semibold border-r border-gray-300 ${
+                          className={`px-4 py-3 text-center text-sm font-semibold border-r border-gray-300 min-w-[120px] ${
                             isRed ? "text-red-600" : "text-gray-900"
                           }`}
                         >
@@ -992,7 +999,6 @@ export default function DispatchTablePage() {
                     : "この期間の配車データはありません"}
                 </div>
               )}
-            </div>
           </CardContent>
         </Card>
 
