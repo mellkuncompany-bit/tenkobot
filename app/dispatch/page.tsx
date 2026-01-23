@@ -333,6 +333,19 @@ export default function DispatchTablePage() {
     });
   }, [staffs, filterDriver]);
 
+  // Get unique assigned work templates from all staffs
+  const assignedWorkTemplates = useMemo(() => {
+    const templateIds = new Set<string>();
+    staffs.forEach(staff => {
+      staff.assignedWorkTemplateIds.forEach(templateId => {
+        templateIds.add(templateId);
+      });
+    });
+
+    // Filter to only include templates that exist in workTemplates
+    return workTemplates.filter(template => templateIds.has(template.id));
+  }, [staffs, workTemplates]);
+
   // Section B: Group shifts by work template
   const shiftsByTemplate = useMemo(() => {
     const map = new Map<string, Map<string, Shift[]>>();
@@ -555,18 +568,30 @@ export default function DispatchTablePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="filterWork">作業</Label>
+                <Label htmlFor="filterWork">
+                  担当作業で絞り込み
+                  <span className="text-xs text-gray-500 ml-2">
+                    ({assignedWorkTemplates.length}件)
+                  </span>
+                </Label>
                 <Select
                   id="filterWork"
                   value={filterWork}
                   onChange={(e) => setFilterWork(e.target.value)}
                 >
-                  <option value="">すべて</option>
-                  {workTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
+                  <option value="">すべて表示</option>
+                  {assignedWorkTemplates.length === 0 && (
+                    <option disabled>担当作業が設定されていません</option>
+                  )}
+                  {assignedWorkTemplates.length > 0 && (
+                    <optgroup label="担当作業一覧">
+                      {assignedWorkTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </Select>
               </div>
             </div>
@@ -798,9 +823,6 @@ export default function DispatchTablePage() {
                       作業
                     </th>
                     <th className="sticky left-[150px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
-                      開始
-                    </th>
-                    <th className="sticky left-[230px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -842,9 +864,6 @@ export default function DispatchTablePage() {
                           {templateName}
                         </td>
                         <td className="sticky left-[150px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
-                          {template?.reportCheckTime || "-"}
-                        </td>
-                        <td className="sticky left-[230px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
@@ -859,11 +878,18 @@ export default function DispatchTablePage() {
                               onClick={() => handleCellClick(dateKey, dayShifts)}
                               title={dayShifts.length > 0 ? "クリックして編集" : undefined}
                             >
-                              <div className="flex items-center justify-center gap-1">
-                                {displayText}
-                                {dayShifts.length > 0 && (
-                                  <Pencil className="h-3 w-3 text-gray-400" />
+                              <div className="flex flex-col items-center justify-center gap-1">
+                                {dayShifts.length > 0 && dayShifts[0].startTime && (
+                                  <div className="text-[10px] text-gray-500 font-medium">
+                                    {dayShifts[0].startTime}
+                                  </div>
                                 )}
+                                <div className="flex items-center gap-1">
+                                  {displayText}
+                                  {dayShifts.length > 0 && (
+                                    <Pencil className="h-3 w-3 text-gray-400" />
+                                  )}
+                                </div>
                               </div>
                             </td>
                           );
