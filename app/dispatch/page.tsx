@@ -770,7 +770,12 @@ export default function DispatchTablePage() {
             }}
             ref={scrollContainerRef}
           >
-            <table className="border-collapse" style={{ minWidth: 'max-content' }}>
+            {staffs.length === 0 ? (
+              <div className="py-12 text-center text-gray-500">
+                スタッフが登録されていません
+              </div>
+            ) : (
+              <table className="border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
                     <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
@@ -855,12 +860,7 @@ export default function DispatchTablePage() {
                   })}
                 </tbody>
               </table>
-
-              {staffs.length === 0 && (
-                <div className="py-12 text-center text-gray-500">
-                  スタッフが登録されていません
-                </div>
-              )}
+            )}
           </CardContent>
         </Card>
 
@@ -885,7 +885,14 @@ export default function DispatchTablePage() {
             }}
             ref={workTableRef}
           >
-            <table className="border-collapse" style={{ minWidth: 'max-content' }}>
+            {shiftsByTemplate.size === 0 ? (
+              <div className="py-12 text-center text-gray-500">
+                {filterDriver || filterWork
+                  ? "条件に一致する配車データはありません"
+                  : "この期間の配車データはありません"}
+              </div>
+            ) : (
+              <table className="border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
                     <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[150px]">
@@ -968,14 +975,7 @@ export default function DispatchTablePage() {
                   })}
                 </tbody>
               </table>
-
-              {shiftsByTemplate.size === 0 && (
-                <div className="py-12 text-center text-gray-500">
-                  {filterDriver || filterWork
-                    ? "条件に一致する配車データはありません"
-                    : "この期間の配車データはありません"}
-                </div>
-              )}
+            )}
           </CardContent>
         </Card>
 
