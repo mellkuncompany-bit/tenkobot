@@ -163,13 +163,32 @@ export default function NewShiftPage() {
         ? requiresRollCall
         : (selectedWorkTemplate?.requiresRollCall || false);
 
-      await createShift({
+      const shiftId = await createShift({
         organizationId: admin.organizationId,
         ...formData,
         requiresRollCall: finalRequiresRollCall,
         driverAssignment,
         status: "scheduled",
       });
+
+      // Send LINE notification if driver is assigned
+      if (driverAssignment && driverAssignment.type === "staff" && driverAssignment.staffId) {
+        try {
+          await fetch("/api/notify-driver-assignment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              shiftId,
+              organizationId: admin.organizationId,
+            }),
+          });
+          console.log("[Shift Create] LINE notification sent");
+        } catch (notifyError) {
+          console.error("[Shift Create] Failed to send LINE notification:", notifyError);
+          // Don't fail the shift creation if notification fails
+        }
+      }
+
       router.push("/shifts");
     } catch (error) {
       alert("作成に失敗しました");
