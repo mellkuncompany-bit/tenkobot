@@ -68,17 +68,8 @@ export default function DispatchTablePage() {
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ created: number; skipped: number } | null>(null);
 
-  // View mode: 'week' or 'month'
-  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
-
-  // Horizontal scroll state - start offset (in days from Sunday)
-  const [scrollOffset, setScrollOffset] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const workTableRef = useRef<HTMLDivElement>(null);
-
-  // Touch swipe state
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   // Long press and context menu state
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
@@ -94,33 +85,19 @@ export default function DispatchTablePage() {
 
   const weekDates = getWeekDates(currentWeekStart);
 
-  // Generate date range based on view mode
+  // Generate date range: 7 days starting from currentWeekStart (typically today's week)
   const visibleDates = useMemo(() => {
     const dates: Date[] = [];
+    const startDate = new Date(weekDates[0]); // Start from Sunday of current week
 
-    if (viewMode === 'week') {
-      // Week view: 7 days with scroll offset
-      const startDate = new Date(weekDates[0]);
-      startDate.setDate(startDate.getDate() + scrollOffset);
-
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(startDate);
-        date.setDate(startDate.getDate() + i);
-        dates.push(date);
-      }
-    } else {
-      // Month view: all days in the current month
-      const year = currentWeekStart.getFullYear();
-      const month = currentWeekStart.getMonth();
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-      for (let day = 1; day <= daysInMonth; day++) {
-        dates.push(new Date(year, month, day));
-      }
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      dates.push(date);
     }
 
     return dates;
-  }, [weekDates, scrollOffset, viewMode, currentWeekStart]);
+  }, [weekDates]);
 
   const fetchData = async () => {
     if (!admin) return;
@@ -152,54 +129,18 @@ export default function DispatchTablePage() {
     const newDate = new Date(currentWeekStart);
     newDate.setDate(newDate.getDate() - 7);
     setCurrentWeekStart(newDate);
-    setScrollOffset(0); // Reset scroll when changing weeks
   };
 
   const goToNextWeek = () => {
     const newDate = new Date(currentWeekStart);
     newDate.setDate(newDate.getDate() + 7);
     setCurrentWeekStart(newDate);
-    setScrollOffset(0); // Reset scroll when changing weeks
   };
 
   const goToThisWeek = () => {
     setCurrentWeekStart(new Date());
-    setScrollOffset(0); // Reset scroll
   };
 
-  // Scroll functions for continuous date viewing
-  const scrollLeft = () => {
-    setScrollOffset((prev) => Math.max(prev - 1, -60)); // Allow scrolling back up to 60 days
-  };
-
-  const scrollRight = () => {
-    setScrollOffset((prev) => Math.min(prev + 1, 60)); // Allow scrolling forward up to 60 days
-  };
-
-  // Touch swipe handlers
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-
-    if (isLeftSwipe) {
-      scrollRight();
-    }
-    if (isRightSwipe) {
-      scrollLeft();
-    }
-  };
 
   // Long press handlers for drag & drop
   const handleCellTouchStart = (e: React.TouchEvent, staffId: string, date: string, dayShifts: Shift[]) => {
@@ -364,12 +305,32 @@ export default function DispatchTablePage() {
     return map;
   }, [visibleShifts, staffs]);
 
-  // Filter staffs based on filterDriver
+  // Filter and sort staffs based on filterDriver and role
   const visibleStaffs = useMemo(() => {
-    if (!filterDriver) {
-      return staffs;
+    // Define role priority: owner > manager > driver
+    const rolePriority: Record<string, number> = {
+      owner: 1,
+      manager: 2,
+      driver: 3
+    };
+
+    let filteredStaffs = staffs;
+    if (filterDriver) {
+      filteredStaffs = staffs.filter(staff => staff.id === filterDriver);
     }
-    return staffs.filter(staff => staff.id === filterDriver);
+
+    // Sort by role priority, then by name
+    return filteredStaffs.sort((a, b) => {
+      const priorityA = rolePriority[a.role] || 999;
+      const priorityB = rolePriority[b.role] || 999;
+
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+
+      // Same role: sort by name (Japanese alphabetical order)
+      return a.name.localeCompare(b.name, 'ja');
+    });
   }, [staffs, filterDriver]);
 
   // Section B: Group shifts by work template
@@ -539,92 +500,19 @@ export default function DispatchTablePage() {
           </div>
         </div>
 
-        {/* View Mode Toggle */}
-        <div className="flex justify-center gap-2 mb-4">
-          <Button
-            variant={viewMode === 'week' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => {
-              setViewMode('week');
-              setScrollOffset(0);
-            }}
-          >
-            週表示
-          </Button>
-          <Button
-            variant={viewMode === 'month' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => {
-              setViewMode('month');
-              setScrollOffset(0);
-            }}
-          >
-            1ヶ月表示
-          </Button>
-        </div>
-
         {/* Navigation Controls */}
-        <div className="flex justify-center gap-2 flex-wrap">
-          {viewMode === 'week' ? (
-            <>
-              <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                前週
-              </Button>
-              <Button variant="outline" size="sm" onClick={goToThisWeek}>
-                今週
-              </Button>
-              <Button variant="outline" size="sm" onClick={goToNextWeek}>
-                次週
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-              <div className="border-l border-gray-300 mx-2"></div>
-              <Button variant="outline" size="sm" onClick={scrollLeft} disabled={scrollOffset <= -60}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                前日
-              </Button>
-              <Button variant="outline" size="sm" onClick={scrollRight} disabled={scrollOffset >= 60}>
-                次日
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const newDate = new Date(currentWeekStart);
-                  newDate.setMonth(newDate.getMonth() - 1);
-                  setCurrentWeekStart(newDate);
-                }}
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                前月
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setCurrentWeekStart(new Date());
-                }}
-              >
-                今月
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const newDate = new Date(currentWeekStart);
-                  newDate.setMonth(newDate.getMonth() + 1);
-                  setCurrentWeekStart(newDate);
-                }}
-              >
-                次月
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </>
-          )}
+        <div className="flex justify-center gap-2 flex-wrap mb-4">
+          <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            前週
+          </Button>
+          <Button variant="outline" size="sm" onClick={goToThisWeek}>
+            今週
+          </Button>
+          <Button variant="outline" size="sm" onClick={goToNextWeek}>
+            次週
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
         </div>
 
         {/* Filters */}
@@ -788,9 +676,6 @@ export default function DispatchTablePage() {
               maxWidth: '100vw'
             }}
             ref={scrollContainerRef}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
           >
             <table className="border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead className="sticky top-0 z-10 bg-white">
@@ -798,7 +683,7 @@ export default function DispatchTablePage() {
                     <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
                       名前
                     </th>
-                    <th className="sticky left-20 z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px]">
+                    <th className="sticky left-20 z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px] hidden md:table-cell">
                       役割
                     </th>
                     <th className="sticky left-[180px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
@@ -840,7 +725,7 @@ export default function DispatchTablePage() {
                         <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
                           {staff.name}
                         </td>
-                        <td className="sticky left-20 z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap">
+                        <td className="sticky left-20 z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap hidden md:table-cell">
                           {getStaffRoleJapanese(staff.role)}
                         </td>
                         <td className="sticky left-[180px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
@@ -905,9 +790,6 @@ export default function DispatchTablePage() {
               maxWidth: '100vw'
             }}
             ref={workTableRef}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
           >
             <table className="border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead className="sticky top-0 z-10 bg-white">
