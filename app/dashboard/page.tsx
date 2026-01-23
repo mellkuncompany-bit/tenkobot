@@ -13,7 +13,9 @@ import { Shift, AttendanceRecord, NotificationLog, Staff, WorkTemplate, Reminder
 import { formatDateKey, formatDateTimeDisplay } from "@/lib/utils/date";
 import { getStaffs } from "@/lib/services/staff-service";
 import { getWorkTemplates } from "@/lib/services/work-template-service";
+import { getUnassignedShifts } from "@/lib/services/shift-service";
 import { getUpcomingRemindersWithTimings, completeReminderWithRecurring } from "@/lib/services/reminder-service";
+import { getDriverDisplayName } from "@/lib/services/driver-assignment-service";
 import { Users, Calendar, AlertCircle, CheckCircle, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 
 export default function DashboardPage() {
@@ -23,6 +25,7 @@ export default function DashboardPage() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [recentLogs, setRecentLogs] = useState<NotificationLog[]>([]);
   const [upcomingReminders, setUpcomingReminders] = useState<Reminder[]>([]);
+  const [unassignedShifts, setUnassignedShifts] = useState<Shift[]>([]);
   const [staffs, setStaffs] = useState<Staff[]>([]);
   const [workTemplates, setWorkTemplates] = useState<WorkTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,6 +133,23 @@ export default function DashboardPage() {
         console.error("Error fetching staffs/templates:", error);
         setStaffs([]);
         setWorkTemplates([]);
+      }
+
+      // Fetch unassigned shifts (next 7 days)
+      try {
+        const nextWeek = formatDateKey(
+          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        );
+        const unassigned = await getUnassignedShifts(
+          admin.organizationId,
+          today,
+          nextWeek
+        );
+        setUnassignedShifts(unassigned);
+        console.log('[Dashboard] Fetched unassigned shifts:', unassigned.length);
+      } catch (error) {
+        console.error("Error fetching unassigned shifts:", error);
+        setUnassignedShifts([]);
       }
 
       setLoading(false);
@@ -247,7 +267,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Stats - Compact */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Card className="p-3">
             <div className="flex items-center justify-between">
               <div>
@@ -285,6 +305,16 @@ export default function DashboardPage() {
                 <p className="text-xl font-bold text-red-600">{escalatingCount}</p>
               </div>
               <AlertCircle className="h-5 w-5 text-red-500" />
+            </div>
+          </Card>
+
+          <Card className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-600 mb-1">未定作業</p>
+                <p className="text-xl font-bold text-orange-600">{unassignedShifts.length}</p>
+              </div>
+              <Users className="h-5 w-5 text-orange-500" />
             </div>
           </Card>
         </div>
@@ -351,6 +381,56 @@ export default function DashboardPage() {
                       >
                         <CheckCircle className="h-4 w-4 mr-1" />
                         完了
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Unassigned Shifts */}
+        {unassignedShifts.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-yellow-600" />
+                担当ドライバー未定の作業
+              </CardTitle>
+              <CardDescription>
+                今後7日間で担当ドライバーが未定の作業
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {unassignedShifts.map((shift) => {
+                  const workTemplate = workTemplates.find(
+                    (t) => t.id === shift.workTemplateId
+                  );
+                  return (
+                    <div
+                      key={shift.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {workTemplate?.name || "不明な作業"}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(shift.date).toLocaleDateString("ja-JP")}
+                          {shift.startTime && ` ${shift.startTime}`}
+                          {shift.endTime && `-${shift.endTime}`}
+                        </p>
+                        <p className="text-xs text-yellow-600 mt-1">
+                          担当: {getDriverDisplayName(shift.driverAssignment, staffs)}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => router.push(`/shifts/${shift.id}`)}
+                      >
+                        担当者を割り当て
                       </Button>
                     </div>
                   );

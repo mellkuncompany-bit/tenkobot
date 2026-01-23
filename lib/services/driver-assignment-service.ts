@@ -100,3 +100,33 @@ export function getDriverAssignmentBadgeVariant(
 
   return "outline";
 }
+
+/**
+ * ドライバー役割のスタッフのみをフィルタリング
+ */
+export function getDriverStaffs(staffs: Staff[]): Staff[] {
+  return staffs.filter((staff) => staff.role === "driver" && staff.isActive);
+}
+
+/**
+ * 連絡先電話番号を取得
+ */
+export function getDriverContactPhone(
+  assignment: DriverAssignment | null,
+  staffs: Staff[]
+): string | null {
+  if (!assignment) return null;
+
+  // assignment.contactPhone が設定されていれば優先
+  if (assignment.contactPhone) {
+    return assignment.contactPhone;
+  }
+
+  // type="staff" の場合、スタッフマスタから取得
+  if (assignment.type === "staff" && assignment.staffId) {
+    const staff = staffs.find((s) => s.id === assignment.staffId);
+    return staff?.phoneNumber || null;
+  }
+
+  return null;
+}
