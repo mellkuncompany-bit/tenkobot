@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { getShifts, generateRecurringShifts } from "@/lib/services/shift-service";
+import { getShifts, generateRecurringShifts, createShift } from "@/lib/services/shift-service";
 import { getStaffs } from "@/lib/services/staff-service";
 import { getWorkTemplates } from "@/lib/services/work-template-service";
 import { Shift, Staff, WorkTemplate } from "@/lib/types/firestore";
@@ -85,6 +85,14 @@ export default function DispatchTablePage() {
     shifts: Shift[];
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Drag and Drop state (for work template to staff assignment)
+  const [dragData, setDragData] = useState<{
+    templateId: string;
+    date: string;
+    shifts: Shift[];
+    workTemplateName: string;
+  } | null>(null);
 
   // Generate date range based on view mode
   const visibleDates = useMemo(() => {
@@ -194,6 +202,129 @@ export default function DispatchTablePage() {
   const closeContextMenu = () => {
     setContextMenu(null);
     setIsDragging(false);
+  };
+
+  // Drag & Drop handlers for work template assignment
+  const handleDragStart = (
+    e: React.DragEvent,
+    data: { templateId: string; date: string; shifts: Shift[]; workTemplateName: string }
+  ) => {
+    setDragData(data);
+    e.dataTransfer.effectAllowed = 'move';
+    setIsDragging(true);
+
+    // Customize drag image
+    const dragImage = document.createElement('div');
+    dragImage.textContent = `${data.workTemplateName} - ${new Date(data.date).toLocaleDateString('ja-JP')}`;
+    dragImage.style.padding = '8px 12px';
+    dragImage.style.backgroundColor = '#3b82f6';
+    dragImage.style.color = 'white';
+    dragImage.style.borderRadius = '6px';
+    dragImage.style.fontSize = '14px';
+    dragImage.style.fontWeight = '500';
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, 0, 0);
+    setTimeout(() => document.body.removeChild(dragImage), 0);
+  };
+
+  const handleDragEnd = () => {
+    setDragData(null);
+    setIsDragging(false);
+  };
+
+  const canDrop = (dateKey: string, staff: Staff): boolean => {
+    if (!dragData) return false;
+
+    // 1. Check if dates match
+    if (dragData.date !== dateKey) return false;
+
+    // 2. Check WorkTemplate's recurring schedule
+    const template = workTemplates.find(t => t.id === dragData.templateId);
+    if (!template) return false;
+
+    if (template.recurringSchedule) {
+      const date = new Date(dateKey);
+      const dayOfWeek = date.getDay();
+
+      if (!template.recurringSchedule.daysOfWeek.includes(dayOfWeek)) {
+        return false; // This day of week is not allowed
+      }
+    }
+
+    // 3. Check for duplicates (same staff, same date, same work template)
+    const existingShifts = shifts.filter(
+      s => s.staffIds.includes(staff.id) && s.date === dateKey && s.workTemplateId === dragData.templateId
+    );
+    if (existingShifts.length > 0) return false;
+
+    return true;
+  };
+
+  const handleDragOver = (e: React.DragEvent, dateKey: string, staff: Staff) => {
+    if (canDrop(dateKey, staff)) {
+      e.preventDefault(); // Allow drop
+      e.dataTransfer.dropEffect = 'move';
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent, dateKey: string, staff: Staff) => {
+    e.preventDefault();
+
+    if (!dragData || !admin || !canDrop(dateKey, staff)) return;
+
+    try {
+      const template = workTemplates.find(t => t.id === dragData.templateId);
+      if (!template) return;
+
+      // Get vehicle ID from staff (if exists)
+      const vehicleId = (staff as any).vehicleId || null;
+
+      // Create new shift and assign to staff
+      const shiftId = await createShift({
+        organizationId: admin.organizationId,
+        workTemplateId: dragData.templateId,
+        staffIds: [staff.id],
+        date: dateKey,
+        startTime: dragData.shifts[0]?.startTime || template.reportCheckTime || '',
+        endTime: dragData.shifts[0]?.endTime || '',
+        escalationPolicyId: template.escalationPolicyId || '',
+        status: 'scheduled',
+        requiresRollCall: template.requiresRollCall || false,
+        driverAssignment: {
+          type: 'staff',
+          staffId: staff.id,
+          freetextName: null,
+          contactPhone: staff.phoneNumber || null,
+        },
+      });
+
+      // Send LINE notification
+      if (shiftId) {
+        try {
+          await fetch('/api/notify-driver-assignment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              shiftId,
+              organizationId: admin.organizationId,
+            }),
+          });
+        } catch (notifyError) {
+          console.error('[Drag&Drop] Failed to send LINE notification:', notifyError);
+        }
+      }
+
+      // Refresh data
+      await fetchData();
+
+      console.log(`[Drag&Drop] Assigned ${template.name} to ${staff.name} on ${dateKey}`);
+    } catch (error) {
+      console.error('[Drag&Drop] Error assigning shift:', error);
+      alert('作業の割り当てに失敗しました');
+    } finally {
+      setDragData(null);
+      setIsDragging(false);
+    }
   };
 
   // Mark shifts as "no delivery"
@@ -836,15 +967,28 @@ export default function DispatchTablePage() {
                           const assignedCourses = getStaffAssignedCoursesForDate(staff, date);
                           const hasShift = dayShifts.length > 0;
 
+                          const isDroppable = isDragging && canDrop(dateKey, staff);
+                          const isDropInvalid = isDragging && !canDrop(dateKey, staff);
+
                           return (
                             <td
                               key={index}
-                              className="px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-300 cursor-pointer hover:bg-blue-50 transition-colors"
+                              className={`px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-300 cursor-pointer transition-colors ${
+                                isDroppable ? 'bg-green-50 border-2 border-green-400' :
+                                isDropInvalid ? 'bg-red-50 opacity-50' :
+                                'hover:bg-blue-50'
+                              }`}
                               onClick={() => handleCellClick(dateKey, dayShifts)}
                               onTouchStart={(e) => handleCellTouchStart(e, staff.id, dateKey, dayShifts)}
                               onTouchEnd={handleCellTouchEnd}
                               onTouchMove={handleCellTouchMove}
-                              title={dayShifts.length > 0 ? "長押しでメニュー表示" : undefined}
+                              onDragOver={(e) => handleDragOver(e, dateKey, staff)}
+                              onDrop={(e) => handleDrop(e, dateKey, staff)}
+                              title={
+                                isDroppable ? "ここにドロップして割り当て" :
+                                isDropInvalid ? "ドロップできません（日付不一致または重複）" :
+                                (dayShifts.length > 0 ? "長押しでメニュー表示" : undefined)
+                              }
                             >
                               <div className="flex flex-col items-center justify-center gap-1">
                                 <div className="text-[11px] text-gray-700">{assignedCourses}</div>
@@ -947,14 +1091,34 @@ export default function DispatchTablePage() {
                           const dayShifts = dateMap.get(dateKey) || [];
                           const displayText = getDriverNamesOrCircle(dayShifts, template, date);
 
+                          const hasDaySchedule = template?.recurringSchedule?.daysOfWeek.includes(date.getDay());
+                          const isDraggable = hasDaySchedule && dayShifts.length > 0;
+
                           return (
                             <td
                               key={index}
-                              className="px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-300 cursor-pointer hover:bg-blue-50 transition-colors"
+                              draggable={isDraggable}
+                              onDragStart={(e) => {
+                                if (isDraggable) {
+                                  handleDragStart(e, {
+                                    templateId: templateId,
+                                    date: dateKey,
+                                    shifts: dayShifts,
+                                    workTemplateName: templateName
+                                  });
+                                }
+                              }}
+                              onDragEnd={handleDragEnd}
+                              className={`px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-300 transition-colors ${
+                                isDraggable ? 'cursor-move hover:bg-blue-50' : 'cursor-pointer hover:bg-blue-50'
+                              }`}
                               onClick={() => handleCellClick(dateKey, dayShifts)}
-                              title={dayShifts.length > 0 ? "クリックして編集" : undefined}
+                              title={isDraggable ? "ドラッグしてスタッフに割り当て" : (dayShifts.length > 0 ? "クリックして編集" : undefined)}
                             >
                               <div className="flex flex-col items-center justify-center gap-1">
+                                {isDraggable && (
+                                  <Move className="h-3 w-3 text-gray-400 mb-0.5" />
+                                )}
                                 {dayShifts.length > 0 && dayShifts[0].startTime && (
                                   <div className="text-[10px] text-gray-500 font-medium">
                                     {dayShifts[0].startTime}
