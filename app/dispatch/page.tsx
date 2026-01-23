@@ -68,6 +68,9 @@ export default function DispatchTablePage() {
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ created: number; skipped: number } | null>(null);
 
+  // View mode: 'week' or 'month'
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const workTableRef = useRef<HTMLDivElement>(null);
 
@@ -83,21 +86,30 @@ export default function DispatchTablePage() {
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const weekDates = getWeekDates(currentWeekStart);
-
-  // Generate date range: 7 days starting from currentWeekStart (typically today's week)
+  // Generate date range based on view mode
   const visibleDates = useMemo(() => {
     const dates: Date[] = [];
-    const startDate = new Date(weekDates[0]); // Start from Sunday of current week
 
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      dates.push(date);
+    if (viewMode === 'week') {
+      // Week view: 7 days starting from currentWeekStart (today)
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(currentWeekStart);
+        date.setDate(currentWeekStart.getDate() + i);
+        dates.push(date);
+      }
+    } else {
+      // Month view: all days in the current month
+      const year = currentWeekStart.getFullYear();
+      const month = currentWeekStart.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        dates.push(new Date(year, month, day));
+      }
     }
 
     return dates;
-  }, [weekDates]);
+  }, [currentWeekStart, viewMode]);
 
   const fetchData = async () => {
     if (!admin) return;
@@ -337,13 +349,23 @@ export default function DispatchTablePage() {
   const assignedWorkTemplates = useMemo(() => {
     const templateIds = new Set<string>();
     staffs.forEach(staff => {
-      staff.assignedWorkTemplateIds.forEach(templateId => {
-        templateIds.add(templateId);
-      });
+      if (staff.assignedWorkTemplateIds && staff.assignedWorkTemplateIds.length > 0) {
+        staff.assignedWorkTemplateIds.forEach(templateId => {
+          templateIds.add(templateId);
+        });
+      }
     });
 
+    // If no assigned templates, return all work templates as fallback
+    if (templateIds.size === 0) {
+      console.log('[Dispatch] No assigned work templates found, showing all work templates');
+      return workTemplates;
+    }
+
     // Filter to only include templates that exist in workTemplates
-    return workTemplates.filter(template => templateIds.has(template.id));
+    const filtered = workTemplates.filter(template => templateIds.has(template.id));
+    console.log('[Dispatch] Assigned work templates:', filtered.length, '/', workTemplates.length);
+    return filtered;
   }, [staffs, workTemplates]);
 
   // Section B: Group shifts by work template
@@ -497,35 +519,81 @@ export default function DispatchTablePage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">配車表</h1>
             <p className="text-gray-600 mt-1">
-              {visibleDates[0].toLocaleDateString("ja-JP")} 〜{" "}
-              {visibleDates[6].toLocaleDateString("ja-JP")}
+              {visibleDates[0]?.toLocaleDateString("ja-JP")} 〜{" "}
+              {visibleDates[visibleDates.length - 1]?.toLocaleDateString("ja-JP")}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowAutoGen(true)}>
-              <Wand2 className="h-4 w-4 mr-2" />
-              自動生成
-            </Button>
-            <Button size="sm" onClick={() => router.push("/shifts/new")}>
-              <Plus className="h-4 w-4 mr-2" />
-              新規作成
-            </Button>
-          </div>
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="flex justify-center gap-2 mb-4">
+          <Button
+            variant={viewMode === 'week' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('week')}
+          >
+            週表示
+          </Button>
+          <Button
+            variant={viewMode === 'month' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('month')}
+          >
+            1ヶ月表示
+          </Button>
         </div>
 
         {/* Navigation Controls */}
         <div className="flex justify-center gap-2 flex-wrap mb-4">
-          <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            前週
-          </Button>
-          <Button variant="outline" size="sm" onClick={goToThisWeek}>
-            今週
-          </Button>
-          <Button variant="outline" size="sm" onClick={goToNextWeek}>
-            次週
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+          {viewMode === 'week' ? (
+            <>
+              <Button variant="outline" size="sm" onClick={goToPreviousWeek}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                前週
+              </Button>
+              <Button variant="outline" size="sm" onClick={goToThisWeek}>
+                今週
+              </Button>
+              <Button variant="outline" size="sm" onClick={goToNextWeek}>
+                次週
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newDate = new Date(currentWeekStart);
+                  newDate.setMonth(newDate.getMonth() - 1);
+                  setCurrentWeekStart(newDate);
+                }}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                前月
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentWeekStart(new Date())}
+              >
+                今月
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newDate = new Date(currentWeekStart);
+                  newDate.setMonth(newDate.getMonth() + 1);
+                  setCurrentWeekStart(newDate);
+                }}
+              >
+                次月
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Filters */}
@@ -711,7 +779,7 @@ export default function DispatchTablePage() {
                     <th className="sticky left-20 z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px] hidden md:table-cell">
                       役割
                     </th>
-                    <th className="sticky left-[180px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
+                    <th className="sticky left-20 md:left-[180px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -747,13 +815,14 @@ export default function DispatchTablePage() {
                           rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
                         }`}
                       >
-                        <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
-                          {staff.name}
+                        <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[80px]">
+                          <div>{staff.name}</div>
+                          <div className="text-[10px] text-gray-500 mt-0.5">車番未設定</div>
                         </td>
                         <td className="sticky left-20 z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap hidden md:table-cell">
                           {getStaffRoleJapanese(staff.role)}
                         </td>
-                        <td className="sticky left-[180px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
+                        <td className="sticky left-20 md:left-[180px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
