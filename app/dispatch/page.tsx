@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { getShifts, generateRecurringShifts, createShift } from "@/lib/services/shift-service";
+import { getShifts, generateRecurringShifts, createShift, updateShift } from "@/lib/services/shift-service";
 import { getStaffs } from "@/lib/services/staff-service";
 import { getWorkTemplates } from "@/lib/services/work-template-service";
 import { Shift, Staff, WorkTemplate } from "@/lib/types/firestore";
@@ -74,6 +74,9 @@ export default function DispatchTablePage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const workTableRef = useRef<HTMLDivElement>(null);
 
+  // Scroll sync state (to prevent infinite loop)
+  const isScrollSyncing = useRef(false);
+
   // Long press and context menu state
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -92,6 +95,16 @@ export default function DispatchTablePage() {
     date: string;
     shifts: Shift[];
     workTemplateName: string;
+  } | null>(null);
+
+  // Touch drag state for mobile
+  const [touchDragData, setTouchDragData] = useState<{
+    templateId: string;
+    date: string;
+    shifts: Shift[];
+    workTemplateName: string;
+    startX: number;
+    startY: number;
   } | null>(null);
 
   // Generate date range based on view mode
@@ -161,6 +174,34 @@ export default function DispatchTablePage() {
     setCurrentWeekStart(new Date());
   };
 
+  // Synchronized scroll handlers for staff and work tables
+  const handleStaffTableScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isScrollSyncing.current) {
+      return;
+    }
+
+    if (workTableRef.current) {
+      isScrollSyncing.current = true;
+      workTableRef.current.scrollLeft = e.currentTarget.scrollLeft;
+      setTimeout(() => {
+        isScrollSyncing.current = false;
+      }, 50);
+    }
+  };
+
+  const handleWorkTableScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (isScrollSyncing.current) {
+      return;
+    }
+
+    if (scrollContainerRef.current) {
+      isScrollSyncing.current = true;
+      scrollContainerRef.current.scrollLeft = e.currentTarget.scrollLeft;
+      setTimeout(() => {
+        isScrollSyncing.current = false;
+      }, 50);
+    }
+  };
 
   // Long press handlers for drag & drop
   const handleCellTouchStart = (e: React.TouchEvent, staffId: string, date: string, dayShifts: Shift[]) => {
@@ -232,14 +273,168 @@ export default function DispatchTablePage() {
     setIsDragging(false);
   };
 
+  // Touch event handlers for mobile drag & drop
+  const handleWorkCellTouchStart = (
+    e: React.TouchEvent,
+    data: { templateId: string; date: string; shifts: Shift[]; workTemplateName: string }
+  ) => {
+    const touch = e.touches[0];
+    setTouchDragData({
+      ...data,
+      startX: touch.clientX,
+      startY: touch.clientY,
+    });
+    setIsDragging(true);
+  };
+
+  const handleWorkCellTouchMove = (e: React.TouchEvent) => {
+    if (!touchDragData) return;
+    // Visual feedback could be added here (e.g., floating element)
+    e.preventDefault(); // Prevent scrolling while dragging
+  };
+
+  const handleWorkCellTouchEnd = (e: React.TouchEvent) => {
+    if (!touchDragData) return;
+
+    const touch = e.changedTouches[0];
+    const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
+
+    // Find the drop target cell
+    const dropCell = elementAtPoint?.closest('[data-drop-cell]');
+    if (dropCell) {
+      const staffId = dropCell.getAttribute('data-staff-id');
+      const date = dropCell.getAttribute('data-date');
+
+      const staff = staffs.find(s => s.id === staffId);
+      if (staff && date && canDrop(date, staff)) {
+        // Perform the drop action
+        handleDropTouch(date, staff);
+      }
+    }
+
+    setTouchDragData(null);
+    setIsDragging(false);
+  };
+
+  const handleDropTouch = async (dateKey: string, staff: Staff) => {
+    if (!touchDragData || !admin) return;
+
+    try {
+      const template = workTemplates.find(t => t.id === touchDragData.templateId);
+      if (!template) return;
+
+      // Check if there are existing shifts for this work template on this date
+      const existingShifts = shifts.filter(
+        s => s.workTemplateId === touchDragData.templateId && s.date === dateKey
+      );
+
+      if (existingShifts.length > 0) {
+        // Get existing staff names
+        const existingStaffNames = existingShifts
+          .map(s => s.staffIds.map(id => {
+            const existingStaff = staffs.find(st => st.id === id);
+            return existingStaff?.name || '不明';
+          }).join('、'))
+          .join('、');
+
+        // Confirm before overwriting
+        const confirmed = window.confirm(
+          `この作業は既に ${existingStaffNames} に割り当てられています。${staff.name} に変更しますか？`
+        );
+
+        if (!confirmed) {
+          return;
+        }
+
+        // Update the first existing shift (since we only allow 1 staff per work)
+        const shiftToUpdate = existingShifts[0];
+        await updateShift(shiftToUpdate.id, {
+          staffIds: [staff.id],
+          driverAssignment: {
+            type: 'staff',
+            staffId: staff.id,
+            freetextName: null,
+            contactPhone: staff.phoneNumber || null,
+          },
+        });
+
+        // Send LINE notification
+        try {
+          await fetch('/api/notify-driver-assignment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              shiftId: shiftToUpdate.id,
+              organizationId: admin.organizationId,
+            }),
+          });
+        } catch (notifyError) {
+          console.error('[Touch Drag&Drop] Failed to send LINE notification:', notifyError);
+        }
+
+        console.log(`[Touch Drag&Drop] Updated ${template.name} to ${staff.name} on ${dateKey}`);
+      } else {
+        // Check if drop is allowed
+        if (!canDrop(dateKey, staff)) {
+          alert('この日付にこの作業を割り当てることはできません（曜日設定または重複）');
+          return;
+        }
+
+        // Create new shift and assign to staff
+        const shiftId = await createShift({
+          organizationId: admin.organizationId,
+          workTemplateId: touchDragData.templateId,
+          staffIds: [staff.id],
+          date: dateKey,
+          startTime: touchDragData.shifts[0]?.startTime || template.reportCheckTime || '',
+          endTime: touchDragData.shifts[0]?.endTime || '',
+          escalationPolicyId: template.escalationPolicyId || '',
+          status: 'scheduled',
+          requiresRollCall: template.requiresRollCall || false,
+          driverAssignment: {
+            type: 'staff',
+            staffId: staff.id,
+            freetextName: null,
+            contactPhone: staff.phoneNumber || null,
+          },
+        });
+
+        // Send LINE notification
+        if (shiftId) {
+          try {
+            await fetch('/api/notify-driver-assignment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                shiftId,
+                organizationId: admin.organizationId,
+              }),
+            });
+          } catch (notifyError) {
+            console.error('[Touch Drag&Drop] Failed to send LINE notification:', notifyError);
+          }
+        }
+
+        console.log(`[Touch Drag&Drop] Assigned ${template.name} to ${staff.name} on ${dateKey}`);
+      }
+
+      await fetchData();
+    } catch (error) {
+      console.error('[Touch Drag&Drop] Error assigning shift:', error);
+      alert('作業の割り当てに失敗しました');
+    }
+  };
+
   const canDrop = (dateKey: string, staff: Staff): boolean => {
-    if (!dragData) return false;
+    // Check for either desktop drag or touch drag data
+    const activeDragData = dragData || touchDragData;
+    if (!activeDragData) return false;
 
     // 1. Check if dates match
-    if (dragData.date !== dateKey) return false;
+    if (activeDragData.date !== dateKey) return false;
 
     // 2. Check WorkTemplate's recurring schedule
-    const template = workTemplates.find(t => t.id === dragData.templateId);
+    const template = workTemplates.find(t => t.id === activeDragData.templateId);
     if (!template) return false;
 
     if (template.recurringSchedule) {
@@ -253,7 +448,7 @@ export default function DispatchTablePage() {
 
     // 3. Check for duplicates (same staff, same date, same work template)
     const existingShifts = shifts.filter(
-      s => s.staffIds.includes(staff.id) && s.date === dateKey && s.workTemplateId === dragData.templateId
+      s => s.staffIds.includes(staff.id) && s.date === dateKey && s.workTemplateId === activeDragData.templateId
     );
     if (existingShifts.length > 0) return false;
 
@@ -270,54 +465,113 @@ export default function DispatchTablePage() {
   const handleDrop = async (e: React.DragEvent, dateKey: string, staff: Staff) => {
     e.preventDefault();
 
-    if (!dragData || !admin || !canDrop(dateKey, staff)) return;
+    if (!dragData || !admin) return;
 
     try {
       const template = workTemplates.find(t => t.id === dragData.templateId);
       if (!template) return;
 
-      // Get vehicle ID from staff (if exists)
-      const vehicleId = (staff as any).vehicleId || null;
+      // Check if there are existing shifts for this work template on this date
+      const existingShifts = shifts.filter(
+        s => s.workTemplateId === dragData.templateId && s.date === dateKey
+      );
 
-      // Create new shift and assign to staff
-      const shiftId = await createShift({
-        organizationId: admin.organizationId,
-        workTemplateId: dragData.templateId,
-        staffIds: [staff.id],
-        date: dateKey,
-        startTime: dragData.shifts[0]?.startTime || template.reportCheckTime || '',
-        endTime: dragData.shifts[0]?.endTime || '',
-        escalationPolicyId: template.escalationPolicyId || '',
-        status: 'scheduled',
-        requiresRollCall: template.requiresRollCall || false,
-        driverAssignment: {
-          type: 'staff',
-          staffId: staff.id,
-          freetextName: null,
-          contactPhone: staff.phoneNumber || null,
-        },
-      });
+      if (existingShifts.length > 0) {
+        // Get existing staff names
+        const existingStaffNames = existingShifts
+          .map(s => s.staffIds.map(id => {
+            const existingStaff = staffs.find(st => st.id === id);
+            return existingStaff?.name || '不明';
+          }).join('、'))
+          .join('、');
 
-      // Send LINE notification
-      if (shiftId) {
+        // Confirm before overwriting
+        const confirmed = window.confirm(
+          `この作業は既に ${existingStaffNames} に割り当てられています。${staff.name} に変更しますか？`
+        );
+
+        if (!confirmed) {
+          setDragData(null);
+          setIsDragging(false);
+          return;
+        }
+
+        // Update the first existing shift (since we only allow 1 staff per work)
+        const shiftToUpdate = existingShifts[0];
+        await updateShift(shiftToUpdate.id, {
+          staffIds: [staff.id],
+          driverAssignment: {
+            type: 'staff',
+            staffId: staff.id,
+            freetextName: null,
+            contactPhone: staff.phoneNumber || null,
+          },
+        });
+
+        // Send LINE notification
         try {
           await fetch('/api/notify-driver-assignment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              shiftId,
+              shiftId: shiftToUpdate.id,
               organizationId: admin.organizationId,
             }),
           });
         } catch (notifyError) {
           console.error('[Drag&Drop] Failed to send LINE notification:', notifyError);
         }
+
+        console.log(`[Drag&Drop] Updated ${template.name} to ${staff.name} on ${dateKey}`);
+      } else {
+        // Check if drop is allowed (no duplicates, correct day of week)
+        if (!canDrop(dateKey, staff)) {
+          alert('この日付にこの作業を割り当てることはできません（曜日設定または重複）');
+          setDragData(null);
+          setIsDragging(false);
+          return;
+        }
+
+        // Create new shift and assign to staff
+        const shiftId = await createShift({
+          organizationId: admin.organizationId,
+          workTemplateId: dragData.templateId,
+          staffIds: [staff.id],
+          date: dateKey,
+          startTime: dragData.shifts[0]?.startTime || template.reportCheckTime || '',
+          endTime: dragData.shifts[0]?.endTime || '',
+          escalationPolicyId: template.escalationPolicyId || '',
+          status: 'scheduled',
+          requiresRollCall: template.requiresRollCall || false,
+          driverAssignment: {
+            type: 'staff',
+            staffId: staff.id,
+            freetextName: null,
+            contactPhone: staff.phoneNumber || null,
+          },
+        });
+
+        // Send LINE notification
+        if (shiftId) {
+          try {
+            await fetch('/api/notify-driver-assignment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                shiftId,
+                organizationId: admin.organizationId,
+              }),
+            });
+          } catch (notifyError) {
+            console.error('[Drag&Drop] Failed to send LINE notification:', notifyError);
+          }
+        }
+
+        console.log(`[Drag&Drop] Assigned ${template.name} to ${staff.name} on ${dateKey}`);
       }
 
       // Refresh data
       await fetchData();
-
-      console.log(`[Drag&Drop] Assigned ${template.name} to ${staff.name} on ${dateKey}`);
     } catch (error) {
       console.error('[Drag&Drop] Error assigning shift:', error);
       alert('作業の割り当てに失敗しました');
@@ -414,9 +668,23 @@ export default function DispatchTablePage() {
       });
     }
 
-    // Filter by work template
+    // Filter by work template or freetext
     if (filterWork) {
-      result = result.filter((shift) => shift.workTemplateId === filterWork);
+      if (filterWork.startsWith('freetext:')) {
+        // Filter by freetext work
+        const freetextName = filterWork.substring('freetext:'.length);
+        // Get staff IDs that have this freetext work assigned
+        const freetextStaffIds = staffs
+          .filter(s => s.assignedWorkFreetext === freetextName)
+          .map(s => s.id);
+        // Filter shifts that have any of these staff members
+        result = result.filter((shift) =>
+          shift.staffIds.some(id => freetextStaffIds.includes(id))
+        );
+      } else {
+        // Filter by WorkTemplate
+        result = result.filter((shift) => shift.workTemplateId === filterWork);
+      }
     }
 
     return result;
@@ -448,7 +716,7 @@ export default function DispatchTablePage() {
     return map;
   }, [visibleShifts, staffs]);
 
-  // Filter and sort staffs based on filterDriver and role
+  // Filter and sort staffs based on filterDriver, filterWork, and role
   const visibleStaffs = useMemo(() => {
     // Define role priority: owner > manager > driver
     const rolePriority: Record<string, number> = {
@@ -458,8 +726,23 @@ export default function DispatchTablePage() {
     };
 
     let filteredStaffs = staffs;
+
+    // Filter by specific driver
     if (filterDriver) {
-      filteredStaffs = staffs.filter(staff => staff.id === filterDriver);
+      filteredStaffs = filteredStaffs.filter(staff => staff.id === filterDriver);
+    }
+
+    // Filter by work (freetext or template)
+    if (filterWork) {
+      if (filterWork.startsWith('freetext:')) {
+        const freetextName = filterWork.substring('freetext:'.length);
+        filteredStaffs = filteredStaffs.filter(staff => staff.assignedWorkFreetext === freetextName);
+      } else {
+        // Filter by WorkTemplate assignment
+        filteredStaffs = filteredStaffs.filter(staff =>
+          staff.assignedWorkTemplateIds && staff.assignedWorkTemplateIds.includes(filterWork)
+        );
+      }
     }
 
     // Sort by role priority, then by name
@@ -474,29 +757,63 @@ export default function DispatchTablePage() {
       // Same role: sort by name (Japanese alphabetical order)
       return a.name.localeCompare(b.name, 'ja');
     });
-  }, [staffs, filterDriver]);
+  }, [staffs, filterDriver, filterWork]);
 
-  // Get unique assigned work templates from all staffs
-  const assignedWorkTemplates = useMemo(() => {
+  // Get unique assigned work templates and freetext works from all staffs
+  const assignedWorkOptions = useMemo(() => {
+    const options: Array<{ id: string; name: string; isFreetext: boolean }> = [];
     const templateIds = new Set<string>();
+    const freetextNames = new Set<string>();
+
     staffs.forEach(staff => {
+      // Get WorkTemplates
       if (staff.assignedWorkTemplateIds && staff.assignedWorkTemplateIds.length > 0) {
         staff.assignedWorkTemplateIds.forEach(templateId => {
           templateIds.add(templateId);
         });
       }
+
+      // Get freetext works
+      if (staff.assignedWorkFreetext) {
+        freetextNames.add(staff.assignedWorkFreetext);
+      }
     });
 
-    // If no assigned templates, return all work templates as fallback
-    if (templateIds.size === 0) {
-      console.log('[Dispatch] No assigned work templates found, showing all work templates');
-      return workTemplates;
+    // Add WorkTemplates
+    workTemplates.forEach(template => {
+      if (templateIds.has(template.id)) {
+        options.push({
+          id: template.id,
+          name: template.name,
+          isFreetext: false,
+        });
+      }
+    });
+
+    // Add freetext works
+    freetextNames.forEach(name => {
+      options.push({
+        id: `freetext:${name}`,
+        name,
+        isFreetext: true,
+      });
+    });
+
+    // If no assigned works, return all work templates as fallback
+    if (options.length === 0) {
+      console.log('[Dispatch] No assigned works found, showing all work templates');
+      workTemplates.forEach(template => {
+        options.push({
+          id: template.id,
+          name: template.name,
+          isFreetext: false,
+        });
+      });
+    } else {
+      console.log('[Dispatch] Assigned work options:', options.length, '(templates:', templateIds.size, '+ freetext:', freetextNames.size, ')');
     }
 
-    // Filter to only include templates that exist in workTemplates
-    const filtered = workTemplates.filter(template => templateIds.has(template.id));
-    console.log('[Dispatch] Assigned work templates:', filtered.length, '/', workTemplates.length);
-    return filtered;
+    return options;
   }, [staffs, workTemplates]);
 
   // Section B: Group shifts by work template
@@ -770,7 +1087,7 @@ export default function DispatchTablePage() {
                 <Label htmlFor="filterWork">
                   担当作業で絞り込み
                   <span className="text-xs text-gray-500 ml-2">
-                    ({assignedWorkTemplates.length}件)
+                    ({assignedWorkOptions.length}件)
                   </span>
                 </Label>
                 <Select
@@ -779,14 +1096,14 @@ export default function DispatchTablePage() {
                   onChange={(e) => setFilterWork(e.target.value)}
                 >
                   <option value="">すべて表示</option>
-                  {assignedWorkTemplates.length === 0 && (
+                  {assignedWorkOptions.length === 0 && (
                     <option disabled>担当作業が設定されていません</option>
                   )}
-                  {assignedWorkTemplates.length > 0 && (
+                  {assignedWorkOptions.length > 0 && (
                     <optgroup label="担当作業一覧">
-                      {assignedWorkTemplates.map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
+                      {assignedWorkOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}{option.isFreetext ? ' (自由記入)' : ''}
                         </option>
                       ))}
                     </optgroup>
@@ -900,6 +1217,7 @@ export default function DispatchTablePage() {
               maxWidth: '100vw'
             }}
             ref={scrollContainerRef}
+            onScroll={handleStaffTableScroll}
           >
             {staffs.length === 0 ? (
               <div className="py-12 text-center text-gray-500">
@@ -915,7 +1233,7 @@ export default function DispatchTablePage() {
                     <th className="sticky left-20 z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px] hidden md:table-cell">
                       役割
                     </th>
-                    <th className="sticky left-20 md:left-[180px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
+                    <th className="sticky left-20 md:left-[180px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px] hidden md:table-cell">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -953,13 +1271,15 @@ export default function DispatchTablePage() {
                       >
                         <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[80px]">
                           <div>{staff.name}</div>
-                          <div className="text-[10px] text-gray-500 mt-0.5">車番未設定</div>
+                          <div className="text-[10px] text-gray-500 mt-0.5 md:hidden">
+                            {(staff as any).vehicleNumber ? `車両No: ${(staff as any).vehicleNumber}` : '車両No'}
+                          </div>
                         </td>
                         <td className="sticky left-20 z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap hidden md:table-cell">
                           {getStaffRoleJapanese(staff.role)}
                         </td>
-                        <td className="sticky left-20 md:left-[180px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
-                          -
+                        <td className="sticky left-20 md:left-[180px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap hidden md:table-cell">
+                          {(staff as any).vehicleNumber || '-'}
                         </td>
                         {visibleDates.map((date, index) => {
                           const dateKey = formatDateKey(date);
@@ -973,6 +1293,9 @@ export default function DispatchTablePage() {
                           return (
                             <td
                               key={index}
+                              data-drop-cell
+                              data-staff-id={staff.id}
+                              data-date={dateKey}
                               className={`px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-300 cursor-pointer transition-colors ${
                                 isDroppable ? 'bg-green-50 border-2 border-green-400' :
                                 isDropInvalid ? 'bg-red-50 opacity-50' :
@@ -993,7 +1316,12 @@ export default function DispatchTablePage() {
                               <div className="flex flex-col items-center justify-center gap-1">
                                 <div className="text-[11px] text-gray-700">{assignedCourses}</div>
                                 {dayShifts.length > 0 && (
-                                  <Pencil className="h-3 w-3 text-gray-400" />
+                                  <>
+                                    <div className="text-[10px] text-blue-600 font-medium">
+                                      {getWorkNames(dayShifts)}
+                                    </div>
+                                    <Pencil className="h-3 w-3 text-gray-400 md:hidden" />
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -1028,6 +1356,7 @@ export default function DispatchTablePage() {
               maxWidth: '100vw'
             }}
             ref={workTableRef}
+            onScroll={handleWorkTableScroll}
           >
             {shiftsByTemplate.size === 0 ? (
               <div className="py-12 text-center text-gray-500">
@@ -1042,7 +1371,10 @@ export default function DispatchTablePage() {
                     <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[150px]">
                       作業
                     </th>
-                    <th className="sticky left-[150px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
+                    <th className="sticky left-[150px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px] hidden md:table-cell">
+                      開始時間
+                    </th>
+                    <th className="sticky left-[250px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px] hidden md:table-cell">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -1083,7 +1415,10 @@ export default function DispatchTablePage() {
                         <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[150px] whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]" title={templateName}>
                           {templateName}
                         </td>
-                        <td className="sticky left-[150px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap">
+                        <td className="sticky left-[150px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap hidden md:table-cell">
+                          {template?.reportCheckTime || '-'}
+                        </td>
+                        <td className="sticky left-[250px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap hidden md:table-cell">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
@@ -1109,6 +1444,18 @@ export default function DispatchTablePage() {
                                 }
                               }}
                               onDragEnd={handleDragEnd}
+                              onTouchStart={(e) => {
+                                if (isDraggable) {
+                                  handleWorkCellTouchStart(e, {
+                                    templateId: templateId,
+                                    date: dateKey,
+                                    shifts: dayShifts,
+                                    workTemplateName: templateName
+                                  });
+                                }
+                              }}
+                              onTouchMove={handleWorkCellTouchMove}
+                              onTouchEnd={handleWorkCellTouchEnd}
                               className={`px-2 py-2 text-xs text-center text-gray-900 border-r border-gray-300 transition-colors ${
                                 isDraggable ? 'cursor-move hover:bg-blue-50' : 'cursor-pointer hover:bg-blue-50'
                               }`}
@@ -1116,12 +1463,9 @@ export default function DispatchTablePage() {
                               title={isDraggable ? "ドラッグしてスタッフに割り当て" : (dayShifts.length > 0 ? "クリックして編集" : undefined)}
                             >
                               <div className="flex flex-col items-center justify-center gap-1">
-                                {isDraggable && (
-                                  <Move className="h-3 w-3 text-gray-400 mb-0.5" />
-                                )}
-                                {dayShifts.length > 0 && dayShifts[0].startTime && (
+                                {dayShifts.length === 0 && hasDaySchedule && template?.reportCheckTime && (
                                   <div className="text-[10px] text-gray-500 font-medium">
-                                    {dayShifts[0].startTime}
+                                    {template.reportCheckTime}
                                   </div>
                                 )}
                                 <div className="flex items-center gap-1">
