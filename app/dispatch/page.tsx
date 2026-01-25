@@ -1227,13 +1227,13 @@ export default function DispatchTablePage() {
               <table className="border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
-                    <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px]">
+                    <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[120px]">
                       名前
                     </th>
-                    <th className="sticky left-20 z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px] hidden md:table-cell">
+                    <th className="sticky left-[120px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px] hidden md:table-cell">
                       役割
                     </th>
-                    <th className="sticky left-20 md:left-[180px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px] hidden md:table-cell">
+                    <th className="sticky left-[120px] md:left-[220px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px] hidden md:table-cell">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -1269,16 +1269,16 @@ export default function DispatchTablePage() {
                           rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
                         }`}
                       >
-                        <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[80px]">
-                          <div>{staff.name}</div>
+                        <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[120px]">
+                          <div className="truncate">{staff.name}</div>
                           <div className="text-[10px] text-gray-500 mt-0.5 md:hidden">
                             {(staff as any).vehicleNumber ? `車両No: ${(staff as any).vehicleNumber}` : '車両No'}
                           </div>
                         </td>
-                        <td className="sticky left-20 z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap hidden md:table-cell">
+                        <td className="sticky left-[120px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap hidden md:table-cell">
                           {getStaffRoleJapanese(staff.role)}
                         </td>
-                        <td className="sticky left-20 md:left-[180px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap hidden md:table-cell">
+                        <td className="sticky left-[120px] md:left-[220px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap hidden md:table-cell">
                           {(staff as any).vehicleNumber || '-'}
                         </td>
                         {visibleDates.map((date, index) => {
@@ -1368,13 +1368,13 @@ export default function DispatchTablePage() {
               <table className="border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="border-b-2 border-gray-300">
-                    <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[150px]">
+                    <th className="sticky left-0 z-20 bg-white px-3 py-3 text-left text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[200px]">
                       作業
                     </th>
-                    <th className="sticky left-[150px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px] hidden md:table-cell">
+                    <th className="sticky left-[200px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[100px] hidden md:table-cell">
                       開始時間
                     </th>
-                    <th className="sticky left-[250px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px] hidden md:table-cell">
+                    <th className="sticky left-[300px] z-20 bg-white px-3 py-3 text-center text-xs font-semibold text-gray-900 border-r border-gray-300 min-w-[80px] hidden md:table-cell">
                       車両No.
                     </th>
                     {visibleDates.map((date, index) => {
@@ -1412,13 +1412,13 @@ export default function DispatchTablePage() {
                           rowIndex % 2 === 0 ? "bg-white" : "bg-gray-50"
                         }`}
                       >
-                        <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[150px] whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]" title={templateName}>
-                          {templateName}
+                        <td className="sticky left-0 z-10 bg-inherit px-3 py-2 text-xs font-medium text-gray-900 border-r border-gray-300 min-w-[200px] max-w-[250px]" title={templateName}>
+                          <div className="truncate">{templateName}</div>
                         </td>
-                        <td className="sticky left-[150px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap hidden md:table-cell">
+                        <td className="sticky left-[200px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[100px] whitespace-nowrap hidden md:table-cell">
                           {template?.reportCheckTime || '-'}
                         </td>
-                        <td className="sticky left-[250px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap hidden md:table-cell">
+                        <td className="sticky left-[300px] z-10 bg-inherit px-3 py-2 text-xs text-center text-gray-600 border-r border-gray-300 min-w-[80px] whitespace-nowrap hidden md:table-cell">
                           -
                         </td>
                         {visibleDates.map((date, index) => {
